@@ -127,7 +127,9 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   if (customHub) {
     const hubUrl = customHub.endsWith('/') ? customHub : customHub + '/';
     racers.push(
-      fetch(hubUrl + hosts[0] + path)
+      fetch(hubUrl + hosts[0] + path, {
+        headers: { 'X-Requested-With': 'Ignition-App' }
+      })
         .then(res => validateAndParse(res, 'HomeHub'))
     );
   }
