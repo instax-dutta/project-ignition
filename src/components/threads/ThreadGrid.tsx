@@ -3,6 +3,7 @@ import { ThreadCard } from './ThreadCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckSquare, Square, Zap, Filter, AlertCircle, RefreshCw } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ThreadGridProps {
   threads: RedditThread[];
@@ -43,6 +44,21 @@ function ThreadCardSkeleton() {
   );
 }
 
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const item = {
+  hidden: { y: 20, opacity: 0 },
+  show: { y: 0, opacity: 1 }
+};
+
 export function ThreadGrid({
   threads,
   isLoading,
@@ -56,17 +72,20 @@ export function ThreadGrid({
   onThreadClick,
   onRetry,
 }: ThreadGridProps) {
-  // Error state with retry
   if (error && !isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4 space-y-4 animate-fade-in">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center justify-center py-16 px-4 space-y-4"
+      >
         <div className="p-4 rounded-full bg-destructive/10">
           <AlertCircle className="h-8 w-8 text-destructive" />
         </div>
         <div className="text-center space-y-2 max-w-md">
           <h3 className="font-heading text-lg font-semibold">Failed to fetch Reddit data</h3>
           <p className="text-sm text-muted-foreground">
-            {error.includes('All proxies failed') 
+            {error.includes('All proxies failed')
               ? "All CORS proxies are currently unavailable. Reddit may be blocking requests or there's a network issue."
               : error}
           </p>
@@ -77,14 +96,13 @@ export function ThreadGrid({
             Try Again
           </Button>
         )}
-      </div>
+      </motion.div>
     );
   }
 
-  // Loading state with skeletons
   if (isLoading) {
     return (
-      <div className="space-y-4 animate-fade-in">
+      <div className="space-y-4">
         <div className="flex items-center justify-between pb-4 border-b border-border/50">
           <div className="flex items-center gap-2">
             <Skeleton className="h-4 w-4 rounded" />
@@ -111,9 +129,13 @@ export function ThreadGrid({
   const allSelected = threads.every((t) => isSelected(t.id));
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4">
       {/* Actions Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border/50">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border/50"
+      >
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Filter className="h-4 w-4" />
           <span>{threads.length} threads found</span>
@@ -132,15 +154,15 @@ export function ThreadGrid({
             className="text-sm"
           >
             {allSelected ? (
-              <>
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="flex items-center">
                 <Square className="h-4 w-4 mr-1" />
                 Clear All
-              </>
+              </motion.div>
             ) : (
-              <>
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="flex items-center">
                 <CheckSquare className="h-4 w-4 mr-1" />
                 Select All
-              </>
+              </motion.div>
             )}
           </Button>
           <Button
@@ -153,25 +175,33 @@ export function ThreadGrid({
             Top 5
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Thread List */}
-      <div className="grid gap-4">
-        {threads.map((thread, idx) => (
-          <div
-            key={thread.id}
-            className="animate-fade-in"
-            style={{ animationDelay: `${idx * 50}ms` }}
-          >
-            <ThreadCard
-              thread={thread}
-              isSelected={isSelected(thread.id)}
-              onToggle={() => onToggle(thread)}
-              onClick={() => onThreadClick?.(thread)}
-            />
-          </div>
-        ))}
-      </div>
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4"
+      >
+        <AnimatePresence mode="popLayout">
+          {threads.map((thread) => (
+            <motion.div
+              layout
+              key={thread.id}
+              variants={item}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <ThreadCard
+                thread={thread}
+                isSelected={isSelected(thread.id)}
+                onToggle={() => onToggle(thread)}
+                onClick={() => onThreadClick?.(thread)}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 }

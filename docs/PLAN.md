@@ -1,51 +1,45 @@
-# Project Ignition Rebranding Plan
+# Plan: Motion & Flow Integration (Ignition)
 
-This plan outlines the steps to rebrand the current project to **Ignition** and optimize it for Netlify hosting.
+This plan outlines the implementation of global smooth scrolling using Lenis and a premium animation system using Framer Motion to enhance the "Old Money" high-aesthetic feel of the project.
 
-## Phase 1: Planning & Analysis ⏳
-- [x] Identify all instances of "Lovable" branding.
-- [x] Identify all instances of "Reddit Context Extractor" branding.
-- [x] Define new brand identity: **Ignition**.
-- [x] Define new motto: *"Ignition to Ultimate Information of Reddit access to LLMs through token optimised files"*.
+## 🏗️ Architecture
 
-## Phase 2: Brand Overhaul 🎨
-### 1. Remove Lovable Branding
-- **Files**: `package.json`, `vite.config.ts`, `index.html`.
-- **Action**: Remove `lovable-tagger` dependency and plugin. Remove Lovable-hosted OG images.
+### 1. Global Scrolling (Lenis)
+- **Setup**: Install `lenis` and implement a global `SmoothScroll` provider.
+- **Config**: Optimize for high-refresh-rate displays and touch devices.
+- **Integration**: Ensure compatibility with existing `react-router-dom` navigation.
 
-### 2. Branding & Content Updates
-- **Files**: `index.html`, `src/pages/Index.tsx`, `src/pages/Templates.tsx`.
-- **Action**: 
-    - Rename "Reddit Context Extractor" to **Ignition**.
-    - Update motto in Hero section and meta tags.
-    - Update header and footer branding.
-    - Update SEO keywords and descriptions.
+### 2. Animation System (Framer Motion)
+- **Library**: Install `framer-motion`.
+- **Patterns**:
+  - **Entrance Animations**: Staggered fade-ins for feature cards and search results.
+  - **Interaction States**: Scale and glow effects for search input and thread cards.
+  - **Page Transitions**: Subtle opacity shifts between the Search and Templates pages.
 
-### 3. Asset Generation
-- **Action**: Generate new brand assets using AI.
-    - `public/favicon.ico`: High-tech "Ignition" themed icon.
-    - `public/logo.svg`: Minimalist "Ignition" logo.
-    - `public/og-image.png`: Professional brand preview for social sharing.
+## 🛠️ Step-by-Step Implementation
 
-## Phase 3: Technical Optimization 🚀
-### 1. Netlify Optimization
-- **File**: `netlify.toml`.
-- **Action**: Create a Netlify configuration file to handle SPA routing (redirect all paths to `index.html`) and set build settings.
-- **Verification**: Ensure `dist` directory is correctly identified.
+### Phase A: Foundation
+1. Install dependencies: `lenis`, `framer-motion`.
+2. Create `src/components/providers/SmoothScroll.tsx` utilizing Lenis.
+3. Wrap the main application in `App.tsx` or `main.tsx` with the provider.
 
-### 2. Build & Cleanup
-- **Action**: Remove unused assets (if any) and ensure a clean production build.
-- **Verification**: Run `npm run build` to verify the build process.
+### Phase B: Core Animations
+1. **Hero Section**: Implement staggered entrance for the title, tagline, and search bar.
+2. **Search Bar**: Add Framer Motion to the "Extract" button and suggestion chips for smooth hover/active states.
+3. **Results**: Implement a "Spring" animation for thread cards as they appear in the grid.
 
-## Phase 4: Final Review & Deployment ✅
-- [ ] Verify all branding changes in a local dev server.
-- [ ] Run security and lint scans.
-- [ ] Final handoff for Netlify deployment.
+### Phase C: Polish & Performance
+1. Configure Lenis to stop scrolling when modals (Thread Preview) are open.
+2. Optimize Framer Motion usage (e.g., `layout` prop) to prevent layout shifts.
 
----
+## 🧪 Verification Criteria
+- [ ] Smooth scrolling is active across all long-form content.
+- [ ] Feature cards animate in sequentially on page load.
+- [ ] Search results "pop" in with a spring effect instead of a hard jump.
+- [ ] No performance regressions in Lighthouse (target 95+ performance).
 
-**Orchestration Details:**
-- **Phase 1**: Orchestrator (Current)
-- **Phase 2 Implementation**: `frontend-specialist`, `documentation-writer`
-- **Phase 3 Implementation**: `devops-engineer`
-- **Verification**: `test-engineer`
+## 👥 Agents Involved
+1. **project-planner**: Architectural design (Current).
+2. **frontend-specialist**: Implementation of components and motion logic.
+3. **performance-optimizer**: Lenis fine-tuning and bundle analysis.
+4. **test-engineer**: Final verification and linting.

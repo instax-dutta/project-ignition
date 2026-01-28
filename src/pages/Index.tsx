@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { SearchBar } from '@/components/search/SearchBar';
 import { SearchFilters } from '@/components/search/SearchFilters';
 import { SubredditList } from '@/components/search/SubredditBadge';
@@ -26,6 +27,30 @@ import {
   Dialog,
   DialogContent,
 } from '@/components/ui/dialog';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.15,
+      delayChildren: 0.2
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      type: "spring",
+      stiffness: 100,
+      damping: 15
+    }
+  }
+};
 
 const Index = () => {
   const navigate = useNavigate();
@@ -103,7 +128,12 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-hero">
       {/* Header */}
-      <header className="border-b border-border/30 bg-background/50 backdrop-blur-sm sticky top-0 z-30">
+      <motion.header
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="border-b border-border/30 bg-background/50 backdrop-blur-sm sticky top-0 z-30"
+      >
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" />
@@ -131,14 +161,19 @@ const Index = () => {
             </a>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Hero Section */}
       {!hasSearched && (
-        <section className="py-20 md:py-32 px-4">
-          <div className="container mx-auto text-center space-y-8">
+        <section className="py-20 md:py-32 px-4 overflow-hidden">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="container mx-auto text-center space-y-8"
+          >
             {/* Tagline */}
-            <div className="space-y-4 max-w-3xl mx-auto animate-fade-in">
+            <motion.div variants={itemVariants} className="space-y-4 max-w-3xl mx-auto">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm">
                 <Sparkles className="h-4 w-4" />
                 TOON Format — 50-70% Token Savings
@@ -149,20 +184,23 @@ const Index = () => {
               <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
                 Ignition to Ultimate Information of Reddit access to LLMs through token optimised files (TOON format) through human not direct api endpoints for ai agents.
               </p>
-            </div>
+            </motion.div>
 
             {/* Search Bar */}
-            <div className="max-w-2xl mx-auto pt-4 animate-fade-in" style={{ animationDelay: '100ms' }}>
+            <motion.div
+              variants={itemVariants}
+              className="max-w-2xl mx-auto pt-4"
+            >
               <SearchBar
                 value={query}
                 onChange={setQuery}
                 onSearch={handleSearch}
                 isLoading={isLoading}
               />
-            </div>
+            </motion.div>
 
             {/* Templates Link */}
-            <div className="animate-fade-in" style={{ animationDelay: '150ms' }}>
+            <motion.div variants={itemVariants}>
               <Button
                 variant="link"
                 onClick={() => navigate('/templates')}
@@ -171,38 +209,46 @@ const Index = () => {
                 <LayoutTemplate className="h-4 w-4 mr-2" />
                 Or try a pre-built template
               </Button>
-            </div>
+            </motion.div>
 
             {/* Features */}
-            <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto pt-12 animate-fade-in" style={{ animationDelay: '200ms' }}>
-              <div className="p-6 bg-card/30 rounded-xl border border-border/30">
+            <motion.div
+              variants={itemVariants}
+              className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto pt-12"
+            >
+              <div className="p-6 bg-card/30 rounded-xl border border-border/30 hover:bg-card/40 transition-colors">
                 <Zap className="h-8 w-8 text-primary mb-4" />
                 <h3 className="font-heading font-semibold mb-2">Smart Discovery</h3>
                 <p className="text-sm text-muted-foreground">
                   Automatically finds the most relevant subreddits for your topic
                 </p>
               </div>
-              <div className="p-6 bg-card/30 rounded-xl border border-border/30">
+              <div className="p-6 bg-card/30 rounded-xl border border-border/30 hover:bg-card/40 transition-colors">
                 <FileText className="h-8 w-8 text-primary mb-4" />
                 <h3 className="font-heading font-semibold mb-2">TOON Format</h3>
                 <p className="text-sm text-muted-foreground">
                   Proprietary format saves 50-70% tokens while preserving context
                 </p>
               </div>
-              <div className="p-6 bg-card/30 rounded-xl border border-border/30">
+              <div className="p-6 bg-card/30 rounded-xl border border-border/30 hover:bg-card/40 transition-colors">
                 <Shield className="h-8 w-8 text-primary mb-4" />
                 <h3 className="font-heading font-semibold mb-2">No API Key</h3>
                 <p className="text-sm text-muted-foreground">
                   Works instantly with no configuration or Reddit account required
                 </p>
               </div>
-            </div>
+            </motion.div>
 
             {/* Scroll indicator */}
-            <div className="pt-8 animate-bounce">
+            <motion.div
+              variants={itemVariants}
+              animate={{ y: [0, 10, 0] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="pt-8"
+            >
               <ChevronDown className="h-6 w-6 text-muted-foreground mx-auto" />
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </section>
       )}
 
@@ -210,29 +256,43 @@ const Index = () => {
       {hasSearched && (
         <main className="container mx-auto px-4 py-8 pb-32">
           {/* Search Bar (compact) */}
-          <div className="mb-6">
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="mb-6"
+          >
             <SearchBar
               value={query}
               onChange={setQuery}
               onSearch={handleSearch}
               isLoading={isLoading}
             />
-          </div>
+          </motion.div>
 
           {/* Filters */}
-          <div className="mb-6">
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="mb-6"
+          >
             <SearchFilters
               timeFilter={timeFilter}
               onTimeFilterChange={setTimeFilter}
               sortOption={sortOption}
               onSortOptionChange={setSortOption}
             />
-          </div>
+          </motion.div>
 
           {/* Subreddit Results */}
-          <div className="mb-8">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="mb-8"
+          >
             <SubredditList subreddits={subreddits} isLoading={isLoading} />
-          </div>
+          </motion.div>
 
           {/* Thread Results */}
           <ThreadGrid
@@ -250,16 +310,23 @@ const Index = () => {
           />
 
           {/* Empty State */}
-          {!isLoading && threads.length === 0 && subreddits.length > 0 && (
-            <div className="text-center py-16 space-y-4">
-              <p className="text-muted-foreground">
-                No threads found for this topic. Try a different search term.
-              </p>
-              <Button variant="outline" onClick={() => setQuery('')}>
-                Clear Search
-              </Button>
-            </div>
-          )}
+          <AnimatePresence>
+            {!isLoading && threads.length === 0 && subreddits.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-center py-16 space-y-4"
+              >
+                <p className="text-muted-foreground">
+                  No threads found for this topic. Try a different search term.
+                </p>
+                <Button variant="outline" onClick={() => setQuery('')}>
+                  Clear Search
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
       )}
 
@@ -272,11 +339,15 @@ const Index = () => {
       />
 
       {/* Floating Export Button */}
-      <FloatingExportButton
-        count={selectedCount}
-        totalTokens={totalTokens}
-        onClick={() => setShowExportPanel(true)}
-      />
+      <AnimatePresence>
+        {selectedCount > 0 && (
+          <FloatingExportButton
+            count={selectedCount}
+            totalTokens={totalTokens}
+            onClick={() => setShowExportPanel(true)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Export Panel Dialog */}
       <Dialog open={showExportPanel} onOpenChange={setShowExportPanel}>

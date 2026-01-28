@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -139,18 +140,35 @@ const templates: SearchTemplate[] = [
   },
 ];
 
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const item = {
+  hidden: { y: 20, opacity: 0 },
+  show: { y: 0, opacity: 1 }
+};
+
 const Templates = () => {
   const navigate = useNavigate();
 
   const handleTemplateClick = (template: SearchTemplate) => {
-    // Navigate to home with the query as a URL parameter
     navigate(`/?q=${encodeURIComponent(template.query)}&autoSearch=true`);
   };
 
   return (
     <div className="min-h-screen bg-gradient-hero">
-      {/* Header */}
-      <header className="border-b border-border/30 bg-background/50 backdrop-blur-sm sticky top-0 z-30">
+      <motion.header
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="border-b border-border/30 bg-background/50 backdrop-blur-sm sticky top-0 z-30"
+      >
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -170,12 +188,14 @@ const Templates = () => {
             </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
-      {/* Content */}
       <main className="container mx-auto px-4 py-12">
-        {/* Hero */}
-        <div className="text-center mb-12 space-y-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12 space-y-4"
+        >
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm">
             <Sparkles className="h-4 w-4" />
             Pre-built Search Templates
@@ -187,56 +207,68 @@ const Templates = () => {
             Choose a template to instantly search for curated Reddit content.
             Each template is optimized to find the most relevant discussions.
           </p>
-        </div>
+        </motion.div>
 
-        {/* Template Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+        >
           {templates.map((template) => (
-            <Card
-              key={template.id}
-              className="group cursor-pointer transition-all duration-300 hover:shadow-card hover:border-primary/50 bg-card/50 hover:bg-card"
-              onClick={() => handleTemplateClick(template)}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                    {template.icon}
+            <motion.div key={template.id} variants={item}>
+              <Card
+                className="group cursor-pointer transition-all duration-300 hover:shadow-card hover:border-primary/50 bg-card/50 hover:bg-card h-full"
+                onClick={() => handleTemplateClick(template)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <motion.div
+                      whileHover={{ scale: 1.1 }}
+                      className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                    >
+                      {template.icon}
+                    </motion.div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Search className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </div>
-                <CardTitle className="text-lg font-heading mt-3">
-                  {template.title}
-                </CardTitle>
-                <CardDescription className="line-clamp-2">
-                  {template.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-1">
-                    {template.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className="text-xs bg-secondary/50"
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
+                  <CardTitle className="text-lg font-heading mt-3">
+                    {template.title}
+                  </CardTitle>
+                  <CardDescription className="line-clamp-2">
+                    {template.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-1">
+                      {template.tags.map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="text-xs bg-secondary/50"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Searches: {template.expectedResults}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Searches: {template.expectedResults}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
-        {/* Custom Search CTA */}
-        <div className="mt-16 text-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          className="mt-16 text-center"
+        >
           <Card className="inline-block p-8 bg-card/30 border-border/50">
             <div className="space-y-4">
               <h3 className="font-heading text-xl font-semibold">
@@ -251,7 +283,7 @@ const Templates = () => {
               </Button>
             </div>
           </Card>
-        </div>
+        </motion.div>
       </main>
     </div>
   );
