@@ -22,65 +22,78 @@ const LIBREDDIT_INSTANCES = [
   'https://libreddit.northboot.xyz',
   'https://libreddit.oxymat.com',
   'https://libreddit.tinfoil-hat.net',
+  'https://libreddit.projectsegfau.lt',
+  'https://redlib.ducks.party',
+  'https://redlib.va.vern.cc',
 ];
 
 const API_PROXY = '/api/proxy?url=';
 
 const getShuffledArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
 
+async function validateAndParse(response: Response, source: string): Promise<any> {
+  const contentType = response.headers.get("content-type");
+  if (!response.ok) throw new Error(`${source}: HTTP ${response.status}`);
+  if (!contentType?.includes("application/json")) throw new Error(`${source}: Not JSON (${contentType})`);
+
+  const text = await response.text();
+  const data = JSON.parse(text);
+
+  // Validate basic Reddit structure
+  if (data && (data.data || Array.isArray(data))) {
+    return data;
+  }
+  throw new Error(`${source}: Invalid Reddit Schema`);
+}
+
 async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   const originalUrl = new URL(url);
   const path = originalUrl.pathname + originalUrl.search;
   let lastError: Error | null = null;
 
-  const proxies = getShuffledArray(CORS_PROXIES);
   const hosts = getShuffledArray(ALTERNATIVE_HOSTS);
-  const libreddits = getShuffledArray(LIBREDDIT_INSTANCES);
 
-  console.log(`[Ignition] 🚀 Unbreakable engine activated for: ${path}`);
+  console.log(`[Ignition] 🏎️ Entering Parallel Race for: ${path}`);
 
-  // Tier 0: Direct Local Proxy (Netlify Function)
-  // This is our most reliable path as it's our own infra
-  for (const host of hosts) {
+  // Tier 0 + Tier 2: The Race
+  const racers: Promise<any>[] = [];
+
+  // 1. Add Local Proxy (Tier 0) to race
+  hosts.forEach(host => {
     const targetUrl = host + path;
-    try {
-      console.log(`[Ignition] ⚡ Tier 0 (Dedicated) - Trying ${host} via Local Bridge`);
-      const response = await fetch(API_PROXY + encodeURIComponent(targetUrl));
+    const racePromise = fetch(API_PROXY + encodeURIComponent(targetUrl))
+      .then(res => validateAndParse(res, `Bridge(${host})`));
+    racers.push(racePromise);
+  });
 
-      const contentType = response.headers.get("content-type");
-      if (response.ok && contentType?.includes("application/json")) {
-        const text = await response.text();
-        const data = JSON.parse(text);
-        if (data && (data.data || Array.isArray(data))) {
-          console.log(`[Ignition] ✨ Tier 0 Success!`);
-          return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
-        }
-      } else {
-        const errorText = await response.text().catch(() => "Unknown error");
-        console.warn(`[Ignition] ⚠️ Tier 0 Status ${response.status} for ${host}. Content-Type: ${contentType}. Body length: ${errorText.length}`);
-      }
-    } catch (e) {
-      console.warn(`[Ignition] ⚠️ Tier 0 Network Error for ${host}:`, e);
-    }
+  // 2. Add Top 4 Libreddit instances to race
+  const libreddits = getShuffledArray(LIBREDDIT_INSTANCES).slice(0, 4);
+  libreddits.forEach(instance => {
+    const targetUrl = instance + path;
+    const racePromise = fetch(targetUrl)
+      .then(res => validateAndParse(res, `Libreddit(${instance})`));
+    racers.push(racePromise);
+  });
+
+  try {
+    const winnerData = await Promise.any(racers);
+    console.log(`[Ignition] 🏁 Race won! Data secured.`);
+    return new Response(JSON.stringify(winnerData), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  } catch (e) {
+    console.warn(`[Ignition] ⚠️ Race failed. Falling back to Tier 1 Sequential...`, e);
   }
 
-  // Tier 1: Official Reddit Hosts via Public Proxies
+  // Tier 1: Fallback (Public Proxies - slower but wide surface area)
+  const proxies = getShuffledArray(CORS_PROXIES);
   for (const host of hosts) {
     const targetUrl = host + path;
-    for (const proxy of proxies) {
+    for (const proxy of proxies.slice(0, 3)) { // Only try top 3 to keep it moving
       try {
         const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
-        console.log(`[Ignition] 🛰️ Tier 1 (Public) - Trying ${host} via ${proxy.split('/')[2]}`);
+        console.log(`[Ignition] 🛰️ Tier 1 (Fallback) - Trying ${host} via ${proxy.split('/')[2]}`);
 
         const response = await fetch(proxyUrl, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const text = await response.text();
-        if (text.trim().startsWith('<') || text.toLowerCase().includes('<!doctype')) throw new Error('Block Page');
-
-        let data = JSON.parse(text);
-        if (data && data.contents) data = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
-        if (!data || (!data.data && !Array.isArray(data))) throw new Error('Invalid Reddit Data');
+        const data = await validateAndParse(response, `Proxy(${proxy.split('/')[2]})`);
 
         console.log(`[Ignition] ✨ Tier 1 Success!`);
         return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -91,34 +104,9 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
     }
   }
 
-  // Tier 2: Libreddit Failover
-  console.warn('[Ignition] 🚑 Public proxies failed. Activating Tier 2: Libreddit Failover...');
-  for (const instance of libreddits) {
-    const targetUrl = instance + path;
-    // For failover, we try only the fastest 3 proxies to save time
-    for (const proxy of proxies.slice(0, 3)) {
-      try {
-        const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
-        console.log(`[Ignition] 🚑 Tier 2 (Failover) - Trying ${instance}`);
-
-        const response = await fetch(proxyUrl);
-        if (!response.ok) continue;
-
-        const text = await response.text();
-        let data = JSON.parse(text);
-        if (data && data.contents) data = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
-
-        if (data && (data.data || Array.isArray(data))) {
-          console.log(`[Ignition] 🏆 Tier 2 Success via ${instance}`);
-          return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
-        }
-      } catch (e) { continue; }
-    }
-  }
-
   if (retries > 0) {
-    console.log(`[Ignition] 🔃 All layers failed. Retrying in 1.5s... (${retries} retries left)`);
-    await new Promise(r => setTimeout(r, 1500));
+    console.log(`[Ignition] 🔃 All lanes blocked. Retrying race in 2s... (${retries} retries left)`);
+    await new Promise(r => setTimeout(r, 2000));
     return fetchWithFallback(url, retries - 1);
   }
 
