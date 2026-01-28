@@ -37,21 +37,26 @@ const getShuffledArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random()
 async function validateAndParse(response: Response, source: string): Promise<any> {
   const contentType = response.headers.get("content-type");
   const isHtml = contentType?.includes("text/html");
-  if (!response.ok) throw new Error(`${source}: HTTP ${response.status}`);
+
+  // Strategy: Even if 403 Forbidden, Reddit often serves the HTML with embedded state!
+  if (!response.ok && !isHtml) {
+    throw new Error(`${source}: HTTP ${response.status}`);
+  }
 
   const text = await response.text();
 
   if (isHtml) {
-    console.log(`[Ignition] 🔍 Attempting HTML extraction from ${source}...`);
+    console.log(`[Ignition] 🔍 Attempting HTML extraction from ${source} (${response.status})...`);
     return extractDataFromHtml(text, source);
   }
 
   if (!contentType?.includes("application/json")) throw new Error(`${source}: Not JSON/HTML (${contentType})`);
   const data = JSON.parse(text);
 
-  if (data && (data.data || Array.isArray(data))) {
-    return data;
-  }
+  // Normalization: Libreddit/Redlib often have different top-level keys
+  if (data && (data.data || Array.isArray(data))) return data;
+  if (data && data.posts) return { data: { children: data.posts.map((p: any) => ({ kind: 't3', data: p })) } };
+
   throw new Error(`${source}: Invalid Reddit Schema`);
 }
 
@@ -115,6 +120,17 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
 
   // The Race: We combine multiple strategies into one concurrent pool
   const racers: Promise<any>[] = [];
+
+  // Strategy 0: Custom Home Hub (Highest Priority if set)
+  // Run this on your RPi: npx cors-anywhere
+  const customHub = typeof window !== 'undefined' ? localStorage.getItem('IGNITION_HUB') : null;
+  if (customHub) {
+    const hubUrl = customHub.endsWith('/') ? customHub : customHub + '/';
+    racers.push(
+      fetch(hubUrl + hosts[0] + path)
+        .then(res => validateAndParse(res, 'HomeHub'))
+    );
+  }
 
   // Strategy 1: Local Bridge (Netlify) -> Official Reddit
   hosts.slice(0, 2).forEach(host => {
