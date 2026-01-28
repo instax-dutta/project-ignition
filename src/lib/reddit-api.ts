@@ -30,6 +30,10 @@ const LIBREDDIT_INSTANCES = [
   'https://redlib.nonbinary.social',
 ];
 
+const COMMUNITY_HUBS = [
+  'https://cors.sdad.pro',
+];
+
 const API_PROXY = '/api/proxy?url=';
 
 const getShuffledArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
@@ -124,7 +128,7 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   // Strategy 0: Custom Home Hub (Highest Priority if set)
   // Run this on your RPi: npx cors-anywhere
   const customHub = typeof window !== 'undefined' ? localStorage.getItem('IGNITION_HUB') : null;
-  console.log(`[Ignition] 🏠 Home Hub Status: ${customHub ? 'ACTIVE (' + customHub + ')' : 'DISABLED'}`);
+  console.log(`[Ignition] 🏠 Hub Status: ${customHub ? 'Using ' + customHub : 'Community Grid (Default)'}`);
 
   if (customHub) {
     const hubUrl = customHub.endsWith('/') ? customHub : customHub + '/';
@@ -135,6 +139,19 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
         .then(res => validateAndParse(res, 'HomeHub'))
     );
   }
+
+  // Strategy 0.5: Community Grid (Packet Buddy Network)
+  // These are residential proxies donated by the community
+  const communityHubs = getShuffledArray(COMMUNITY_HUBS);
+  communityHubs.forEach(hubUrl => {
+    const cleanHub = hubUrl.endsWith('/') ? hubUrl : hubUrl + '/';
+    racers.push(
+      fetch(cleanHub + hosts[0] + path, {
+        headers: { 'X-Requested-With': 'Ignition-App' }
+      })
+        .then(res => validateAndParse(res, `Grid(${new URL(hubUrl).hostname})`))
+    );
+  });
 
   // Strategy 1: Local Bridge (Netlify) -> Official Reddit
   hosts.slice(0, 2).forEach(host => {
