@@ -102,7 +102,15 @@ We welcome contributions! Whether it's adding new subreddit mappings, improving 
 
 ---
 
-## 📄 License
+## �️ Roadmap & Todo
+
+- [ ] **Redis Caching**: Implement weekly caching for Reddit results to reduce proxy load and improve speed.
+- [ ] **Smart Refresh**: Automatically update cached data on subsequent user searches for the same topic.
+- [ ] **Advanced Filtering**: More granular control over search results (by author, flair, etc.).
+
+---
+
+## �📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 

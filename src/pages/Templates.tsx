@@ -191,7 +191,10 @@ const Templates = () => {
                 <Github className="h-4 w-4" />
                 <span className="hidden sm:inline">Contribute Now</span>
               </a>
-              <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() => navigate('/')}
+              >
                 <FileText className="h-6 w-6 text-primary" />
                 <span className="font-heading text-xl font-semibold">
                   Ignition

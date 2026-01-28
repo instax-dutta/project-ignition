@@ -45,7 +45,7 @@ const itemVariants = {
     y: 0,
     opacity: 1,
     transition: {
-      type: "spring",
+      type: "spring" as const,
       stiffness: 100,
       damping: 15
     }
@@ -135,7 +135,13 @@ const Index = () => {
         className="border-b border-border/30 bg-background/50 backdrop-blur-sm sticky top-0 z-30"
       >
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => {
+              navigate('/');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          >
             <FileText className="h-6 w-6 text-primary" />
             <span className="font-heading text-xl font-semibold">
               Ignition
