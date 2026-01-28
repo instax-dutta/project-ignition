@@ -2,11 +2,12 @@ import { RedditThread } from '@/types/reddit.types';
 import { ThreadCard } from './ThreadCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CheckSquare, Square, Zap, Filter } from 'lucide-react';
+import { CheckSquare, Square, Zap, Filter, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface ThreadGridProps {
   threads: RedditThread[];
   isLoading: boolean;
+  error?: string | null;
   isSelected: (id: string) => boolean;
   onToggle: (thread: RedditThread) => void;
   onSelectAll: () => void;
@@ -14,11 +15,38 @@ interface ThreadGridProps {
   onSelectTopN: (n: number) => void;
   selectedCount: number;
   onThreadClick?: (thread: RedditThread) => void;
+  onRetry?: () => void;
+}
+
+function ThreadCardSkeleton() {
+  return (
+    <div className="border border-border/50 rounded-lg p-4 bg-card/30 space-y-3">
+      <div className="flex items-start gap-3">
+        <Skeleton className="h-5 w-5 rounded" />
+        <div className="flex-1 space-y-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-3/4" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+          <div className="flex items-center gap-4 pt-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ThreadGrid({
   threads,
   isLoading,
+  error,
   isSelected,
   onToggle,
   onSelectAll,
@@ -26,17 +54,50 @@ export function ThreadGrid({
   onSelectTopN,
   selectedCount,
   onThreadClick,
+  onRetry,
 }: ThreadGridProps) {
+  // Error state with retry
+  if (error && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-4 space-y-4 animate-fade-in">
+        <div className="p-4 rounded-full bg-destructive/10">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+        </div>
+        <div className="text-center space-y-2 max-w-md">
+          <h3 className="font-heading text-lg font-semibold">Failed to fetch Reddit data</h3>
+          <p className="text-sm text-muted-foreground">
+            {error.includes('All proxies failed') 
+              ? "All CORS proxies are currently unavailable. Reddit may be blocking requests or there's a network issue."
+              : error}
+          </p>
+        </div>
+        {onRetry && (
+          <Button variant="outline" onClick={onRetry} className="mt-4">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // Loading state with skeletons
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-32" />
+      <div className="space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between pb-4 border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-4 rounded" />
+            <Skeleton className="h-5 w-32" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-24 rounded-md" />
+            <Skeleton className="h-9 w-20 rounded-md" />
+          </div>
         </div>
         <div className="grid gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 w-full rounded-lg" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <ThreadCardSkeleton key={i} />
           ))}
         </div>
       </div>

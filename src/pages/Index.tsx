@@ -180,26 +180,20 @@ const Index = () => {
             <SubredditList subreddits={subreddits} isLoading={isLoading} />
           </div>
 
-          {/* Error State */}
-          {error && (
-            <div className="text-center py-12 text-destructive">
-              <p>Error: {error}</p>
-              <Button variant="outline" onClick={handleSearch} className="mt-4">
-                Try Again
-              </Button>
-            </div>
-          )}
+          {/* Error state is now handled in ThreadGrid */}
 
           {/* Thread Results */}
           <ThreadGrid
             threads={threads}
             isLoading={isLoading}
+            error={error}
             isSelected={isSelected}
             onToggle={toggle}
             onSelectAll={() => selectAll(threads)}
             onClearAll={clearAll}
             onSelectTopN={(n) => selectTopN(threads, n)}
             selectedCount={selectedCount}
+            onRetry={handleSearch}
           />
 
           {/* Empty State */}
