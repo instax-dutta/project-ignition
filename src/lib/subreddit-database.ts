@@ -28,7 +28,7 @@ export const subredditDatabase: Record<string, SubredditCategory> = {
       { name: 'boxoffice', weight: 70, description: 'Box office news' },
     ],
   },
-  
+
   // Technology
   ai_news: {
     keywords: ['ai', 'artificial intelligence', 'machine learning', 'ml', 'gpt', 'openai', 'chatgpt', 'llm', 'claude'],
@@ -59,7 +59,7 @@ export const subredditDatabase: Record<string, SubredditCategory> = {
       { name: 'Python', weight: 80, description: 'Python community' },
     ],
   },
-  
+
   // Business & Finance
   startup: {
     keywords: ['startup', 'entrepreneur', 'founder', 'side project', 'saas', 'business idea', 'launch'],
@@ -81,7 +81,7 @@ export const subredditDatabase: Record<string, SubredditCategory> = {
       { name: 'personalfinance', weight: 80, description: 'Personal finance' },
     ],
   },
-  
+
   // Gaming
   gaming: {
     keywords: ['gaming', 'video game', 'game', 'playstation', 'xbox', 'nintendo', 'pc gaming'],
@@ -93,7 +93,7 @@ export const subredditDatabase: Record<string, SubredditCategory> = {
       { name: 'XboxSeriesX', weight: 80, description: 'Xbox Series X' },
     ],
   },
-  
+
   // Food & Cooking
   cooking: {
     keywords: ['cooking', 'recipe', 'food', 'kitchen', 'chef', 'meal', 'cuisine'],
@@ -105,7 +105,7 @@ export const subredditDatabase: Record<string, SubredditCategory> = {
       { name: 'MealPrepSunday', weight: 75, description: 'Meal prep' },
     ],
   },
-  
+
   // Science
   science: {
     keywords: ['science', 'research', 'study', 'scientific', 'discovery', 'physics', 'biology'],
@@ -117,7 +117,7 @@ export const subredditDatabase: Record<string, SubredditCategory> = {
       { name: 'biology', weight: 80, description: 'Biology discussions' },
     ],
   },
-  
+
   // Self Improvement
   productivity: {
     keywords: ['productivity', 'self improvement', 'habits', 'motivation', 'discipline', 'goals'],
@@ -128,7 +128,7 @@ export const subredditDatabase: Record<string, SubredditCategory> = {
       { name: 'selfimprovement', weight: 85, description: 'Personal growth' },
     ],
   },
-  
+
   // Design
   design: {
     keywords: ['design', 'ui', 'ux', 'graphic design', 'web design', 'figma', 'creative'],
@@ -137,6 +137,24 @@ export const subredditDatabase: Record<string, SubredditCategory> = {
       { name: 'web_design', weight: 95, description: 'Web design' },
       { name: 'UI_Design', weight: 90, description: 'UI design' },
       { name: 'graphic_design', weight: 85, description: 'Graphic design' },
+    ],
+  },
+  life_hacks: {
+    keywords: ['life hack', 'tip', 'advice', 'trick', 'efficiency', 'useful', 'how to'],
+    subreddits: [
+      { name: 'LifeProTips', weight: 100, description: 'Life tips' },
+      { name: 'explainlikeimfive', weight: 90, description: 'Simple explanations' },
+      { name: 'NoStupidQuestions', weight: 85, description: 'General questions' },
+      { name: 'didntknowiwantedthat', weight: 80, description: 'Interesting finds' },
+    ],
+  },
+  general_news: {
+    keywords: ['news', 'world', 'current event', 'politics', 'breaking', 'global'],
+    subreddits: [
+      { name: 'news', weight: 100, description: 'General news' },
+      { name: 'worldnews', weight: 95, description: 'Global news' },
+      { name: 'upliftingnews', weight: 80, description: 'Positive news' },
+      { name: 'nottheonion', weight: 75, description: 'True but weird' },
     ],
   },
 };

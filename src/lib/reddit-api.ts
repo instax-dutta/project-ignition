@@ -2,49 +2,104 @@ import { RedditThread, RedditComment, TimeFilter } from '@/types/reddit.types';
 
 // List of CORS proxies to try in order
 const CORS_PROXIES = [
-  'https://corsproxy.io/?',
   'https://api.allorigins.win/raw?url=',
+  'https://thingproxy.freeboard.io/fetch/',
   'https://api.codetabs.com/v1/proxy?quest=',
+  'https://cors-anywhere.herokuapp.com/',
+  'https://corsproxy.io/?',
+  'https://proxy.cors.sh/',
 ];
+
+// Shuffle proxies to avoid hitting the same one first every time
+const getShuffledProxies = () => [...CORS_PROXIES].sort(() => Math.random() - 0.5);
 
 async function fetchWithFallback(url: string): Promise<Response> {
   let lastError: Error | null = null;
-  
-  for (const proxy of CORS_PROXIES) {
+  const proxies = getShuffledProxies();
+  console.log(`[Ignition] 🚀 Initiating fetch for: ${url}`);
+
+  // Try direct fetch first (in case of browser extensions or local development overrides)
+  try {
+    const directResponse = await fetch(url + (url.includes('?') ? '&' : '?') + '___cb=' + Date.now(), { mode: 'cors' });
+    if (directResponse.ok) {
+      const data = await directResponse.json();
+      console.log('[Ignition] ✅ Direct fetch successful!');
+      return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+  } catch (e) {
+    console.log('[Ignition] ℹ️ Direct fetch blocked by CORS (expected), trying proxies...');
+  }
+
+  for (const proxy of proxies) {
     try {
       const proxyUrl = proxy + encodeURIComponent(url);
+      console.log(`[Ignition] 🛰️ Trying proxy: ${proxy}`);
+
       const response = await fetch(proxyUrl, {
+        method: 'GET',
         headers: {
           'Accept': 'application/json',
-        },
+        }
       });
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
-      
-      // Check if response is actually JSON by peeking at content
+
       const text = await response.text();
-      
-      // If it starts with HTML tags, it's not JSON
-      if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
-        throw new Error('Received HTML instead of JSON');
+      const trimmedText = text.trim();
+
+      console.log(`[Ignition] 📥 Received ${text.length} bytes from ${proxy}`);
+
+      // Smarter detection: Is it actually JSON?
+      let data;
+      try {
+        data = JSON.parse(trimmedText);
+      } catch (e) {
+        // If parsing fails, and it looks like HTML, it's definitely a block page
+        if (trimmedText.startsWith('<') || trimmedText.toLowerCase().includes('<!doctype')) {
+          console.warn(`[Ignition] ❌ Proxy ${proxy} returned HTML (likely a block/demo page)`);
+          throw new Error('Received HTML instead of JSON');
+        }
+        console.error(`[Ignition] ❌ JSON parse failed from ${proxy}:`, trimmedText.substring(0, 50) + '...');
+        throw new Error('Invalid JSON response');
       }
-      
-      // Parse and return as a new Response with the JSON
-      const data = JSON.parse(text);
+
+      // Unwrap AllOrigins /get wrapper if it somehow sneaks in
+      if (data && typeof data === 'object' && 'contents' in data) {
+        console.log(`[Ignition] 📦 Unwrapping proxy payload...`);
+        const contents = data.contents;
+        if (typeof contents === 'string') {
+          try {
+            data = JSON.parse(contents);
+          } catch (e) {
+            console.warn(`[Ignition] ⚠️ Failed to parse payload contents as JSON`);
+          }
+        } else if (typeof contents === 'object') {
+          data = contents;
+        }
+      }
+
+      // Validate Reddit Data Shape
+      if (!data || (!data.data && !Array.isArray(data))) {
+        console.warn(`[Ignition] ⚠️ Response from ${proxy} lacks Reddit structure:`, data);
+        throw new Error('Invalid Reddit payload');
+      }
+
+      console.log(`[Ignition] ✨ Successfully retrieved data from ${proxy}`);
       return new Response(JSON.stringify(data), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
     } catch (error) {
       lastError = error as Error;
-      console.warn(`Proxy ${proxy} failed:`, error);
+      console.warn(`[Ignition] 🛑 Proxy ${proxy} failed:`, lastError.message);
       continue;
     }
   }
-  
-  throw lastError || new Error('All proxies failed');
+
+  console.error('[Ignition] 💀 All proxies exhausted.');
+  throw lastError || new Error('All proxies failed to fetch content');
 }
 
 export async function searchSubreddit(
@@ -77,7 +132,7 @@ export async function fetchThreadWithComments(
   try {
     const response = await fetchWithFallback(url);
     const data = await response.json();
-    
+
     if (!Array.isArray(data) || data.length < 2) {
       return null;
     }
@@ -119,10 +174,10 @@ export async function searchMultipleSubreddits(
   // Use Promise.allSettled for graceful failure handling - faster than waiting for all to fail
   const promises = subreddits.map((sub) => searchSubreddit(sub, query, sort, time, 10));
   const results = await Promise.allSettled(promises);
-  
+
   // Flatten and dedupe by thread ID using a Map for O(1) lookups
   const threadsMap = new Map<string, RedditThread>();
-  
+
   for (const result of results) {
     if (result.status === 'fulfilled') {
       for (const thread of result.value) {
@@ -141,12 +196,22 @@ export async function searchMultipleSubreddits(
   });
 }
 
-function parseThreads(data: any): RedditThread[] {
+interface RedditResponse {
+  data: {
+    children: Array<{
+      kind: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: any; // reddit data is deeply nested and varied, using any here with caution or define more if needed
+    }>;
+  };
+}
+
+function parseThreads(data: RedditResponse): RedditThread[] {
   if (!data?.data?.children) return [];
 
   return data.data.children
-    .filter((child: any) => child.kind === 't3')
-    .map((child: any) => {
+    .filter((child) => child.kind === 't3')
+    .map((child) => {
       const thread = child.data;
       return {
         id: thread.id,
@@ -169,6 +234,7 @@ function parseThreads(data: any): RedditThread[] {
     });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseComments(children: any[], depth = 0): RedditComment[] {
   if (!children || depth > 5) return [];
 
@@ -196,13 +262,13 @@ function parseComments(children: any[], depth = 0): RedditComment[] {
 export function calculateTokenEstimate(thread: RedditThread): number {
   // Rough estimate: 1 token ≈ 4 characters
   let charCount = thread.title.length + thread.selftext.length;
-  
+
   const countCommentChars = (comments: RedditComment[]): number => {
     return comments.reduce((sum, comment) => {
       return sum + comment.body.length + countCommentChars(comment.replies);
     }, 0);
   };
-  
+
   charCount += countCommentChars(thread.comments);
   return Math.ceil(charCount / 4);
 }

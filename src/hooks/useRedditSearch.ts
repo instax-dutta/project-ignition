@@ -26,7 +26,7 @@ export function useRedditSearch(): UseRedditSearchReturn {
   const [sortOption, setSortOption] = useState<SortOption>('top');
   const queryClient = useQueryClient();
 
-  const { data: threads = [], isLoading, error, refetch } = useQuery({
+  const { data: threads = [], isLoading, error } = useQuery({
     queryKey: ['reddit-search', query, subreddits.map(s => s.name), timeFilter, sortOption],
     queryFn: async () => {
       if (!query || subreddits.length === 0) return [];
@@ -37,7 +37,7 @@ export function useRedditSearch(): UseRedditSearchReturn {
         timeFilter
       );
     },
-    enabled: false,
+    enabled: !!query && subreddits.length > 0,
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
@@ -45,18 +45,10 @@ export function useRedditSearch(): UseRedditSearchReturn {
   const search = useCallback(async () => {
     if (!query.trim()) return;
 
-    // Find relevant subreddits
+    // Find relevant subreddits - this will trigger the useQuery automatically
     const matches = findRelevantSubreddits(query);
     setSubreddits(matches);
-
-    // Trigger the search query
-    if (matches.length > 0) {
-      await queryClient.invalidateQueries({ 
-        queryKey: ['reddit-search', query, matches.map(s => s.name), timeFilter, sortOption] 
-      });
-      refetch();
-    }
-  }, [query, timeFilter, sortOption, queryClient, refetch]);
+  }, [query]);
 
   const fetchComments = useCallback(async (thread: RedditThread): Promise<RedditThread | null> => {
     return fetchThreadWithComments(thread.subreddit, thread.id);

@@ -128,7 +128,7 @@ const Templates = () => {
             <div className="flex items-center gap-2">
               <FileText className="h-6 w-6 text-primary" />
               <span className="font-heading text-xl font-semibold">
-                Reddit<span className="text-primary">Context</span>
+                Ignition
               </span>
             </div>
           </div>

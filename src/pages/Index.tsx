@@ -12,10 +12,10 @@ import { useRedditSearch } from '@/hooks/useRedditSearch';
 import { useThreadSelection } from '@/hooks/useThreadSelection';
 import { RedditThread } from '@/types/reddit.types';
 import { generateFilename } from '@/lib/toon-generator';
-import { 
-  Sparkles, 
-  FileText, 
-  Zap, 
+import {
+  Sparkles,
+  FileText,
+  Zap,
   Shield,
   ChevronDown,
   Github,
@@ -30,7 +30,7 @@ import {
 const Index = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+
   const {
     query,
     setQuery,
@@ -73,7 +73,7 @@ const Index = () => {
       // Delay search to allow state to update
       setTimeout(() => search(), 100);
     }
-  }, [searchParams]);
+  }, [searchParams, search, setQuery]);
 
   const handleSearch = async () => {
     clearAll();
@@ -108,7 +108,7 @@ const Index = () => {
           <div className="flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" />
             <span className="font-heading text-xl font-semibold">
-              Reddit<span className="text-primary">Context</span>
+              Ignition
             </span>
           </div>
           <div className="flex items-center gap-4">
@@ -121,9 +121,9 @@ const Index = () => {
               <LayoutTemplate className="h-4 w-4 mr-2" />
               Templates
             </Button>
-            <a 
-              href="https://github.com" 
-              target="_blank" 
+            <a
+              href="https://github.com"
+              target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -144,13 +144,10 @@ const Index = () => {
                 TOON Format — 50-70% Token Savings
               </div>
               <h1 className="text-4xl md:text-6xl font-heading font-bold leading-tight">
-                Transform Reddit Wisdom
-                <br />
-                <span className="text-gradient-gold">into AI Context</span>
+                Ignition: <span className="text-gradient-gold">Ultimate Information Access</span>
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-                Intelligently extract Reddit discussions and convert them into 
-                token-optimized files ready for ChatGPT and Claude.
+                Ignition to Ultimate Information of Reddit access to LLMs through token optimised files (TOON format) through human not direct api endpoints for ai agents.
               </p>
             </div>
 
