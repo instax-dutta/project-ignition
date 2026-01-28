@@ -52,50 +52,65 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   let lastError: Error | null = null;
 
   const hosts = getShuffledArray(ALTERNATIVE_HOSTS);
+  const proxies = getShuffledArray(CORS_PROXIES);
 
   console.log(`[Ignition] 🏎️ Entering Parallel Race for: ${path}`);
 
-  // Tier 0 + Tier 2: The Race
+  // The Race: We combine multiple strategies into one concurrent pool
   const racers: Promise<any>[] = [];
 
-  // 1. Add Local Proxy (Tier 0) to race
-  hosts.forEach(host => {
+  // Strategy 1: Local Bridge (Netlify) -> Official Reddit
+  hosts.slice(0, 2).forEach(host => {
     const targetUrl = host + path;
-    const racePromise = fetch(API_PROXY + encodeURIComponent(targetUrl))
-      .then(res => validateAndParse(res, `Bridge(${host})`));
-    racers.push(racePromise);
+    racers.push(
+      fetch(API_PROXY + encodeURIComponent(targetUrl))
+        .then(res => validateAndParse(res, `Bridge(${host})`))
+    );
   });
 
-  // 2. Add Top 4 Libreddit instances to race
-  const libreddits = getShuffledArray(LIBREDDIT_INSTANCES).slice(0, 4);
+  // Strategy 2: Local Bridge (Netlify) -> Libreddit Instances
+  // Proxied to ensure CORS doesn't kill the race early
+  const libreddits = getShuffledArray(LIBREDDIT_INSTANCES).slice(0, 3);
   libreddits.forEach(instance => {
     const targetUrl = instance + path;
-    const racePromise = fetch(targetUrl)
-      .then(res => validateAndParse(res, `Libreddit(${instance})`));
-    racers.push(racePromise);
+    racers.push(
+      fetch(API_PROXY + encodeURIComponent(targetUrl))
+        .then(res => validateAndParse(res, `BridgeLib(${instance})`))
+    );
+  });
+
+  // Strategy 3: Best Public Proxies -> Reddit (Direct browser fetch)
+  // These use different IPs (the user's browser or the proxy's server)
+  const bestProxies = ['api.allorigins.win', 'corsproxy.io'];
+  bestProxies.forEach(proxyBase => {
+    const proxy = CORS_PROXIES.find(p => p.includes(proxyBase));
+    if (proxy) {
+      const targetUrl = hosts[0] + path; // Try main host
+      const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
+      racers.push(
+        fetch(proxyUrl)
+          .then(res => validateAndParse(res, `PublicRace(${proxyBase})`))
+      );
+    }
   });
 
   try {
     const winnerData = await Promise.any(racers);
-    console.log(`[Ignition] 🏁 Race won! Data secured.`);
+    console.log(`[Ignition] 🏁 Race won!`);
     return new Response(JSON.stringify(winnerData), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (e) {
-    console.warn(`[Ignition] ⚠️ Race failed. Falling back to Tier 1 Sequential...`, e);
+    console.warn(`[Ignition] ⚠️ Parallel Race failed, attempting last-resort sequential...`, e);
   }
 
-  // Tier 1: Fallback (Public Proxies - slower but wide surface area)
-  const proxies = getShuffledArray(CORS_PROXIES);
+  // Tier 1: Fallback (Sequential - slow, but exhaustive)
   for (const host of hosts) {
     const targetUrl = host + path;
-    for (const proxy of proxies.slice(0, 3)) { // Only try top 3 to keep it moving
+    for (const proxy of proxies.slice(0, 3)) {
       try {
         const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
         console.log(`[Ignition] 🛰️ Tier 1 (Fallback) - Trying ${host} via ${proxy.split('/')[2]}`);
-
-        const response = await fetch(proxyUrl, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
-        const data = await validateAndParse(response, `Proxy(${proxy.split('/')[2]})`);
-
-        console.log(`[Ignition] ✨ Tier 1 Success!`);
+        const response = await fetch(proxyUrl, { headers: { 'Accept': 'application/json' } });
+        const data = await validateAndParse(response, `Fallback(${proxy.split('/')[2]})`);
         return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         lastError = e as Error;
@@ -105,7 +120,7 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   }
 
   if (retries > 0) {
-    console.log(`[Ignition] 🔃 All lanes blocked. Retrying race in 2s... (${retries} retries left)`);
+    console.log(`[Ignition] 🔃 All lanes blocked. Retrying in 2s... (${retries})`);
     await new Promise(r => setTimeout(r, 2000));
     return fetchWithFallback(url, retries - 1);
   }
