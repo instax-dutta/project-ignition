@@ -16,14 +16,17 @@ Most LLM scrapers fail because they treat Reddit like a flat document. Ignition 
 
 - **🧠 Intelligent Subreddit Discovery**: Semantic mapping of topics to a curated database of high-signal communities.
 - **📉 TOON Optimizer**: Reduces token usage by 50-70% via strategic removal of noise while maintaining 100% semantic integrity.
-- **🛡️ Resilience Engine**: Multi-layered CORS proxy rotation ensures content fetching works even when high-traffic limits are hit.
-- **💎 Premium UI**: A Vercel-inspired, high-performance interface built for speed and clarity.
+- **🛡️ Unbreakable Fetch Engine**: A multi-tier resilience system that rotates through official Reddit hosts, CORS proxies, and Libreddit failovers to guarantee uptime without API keys.
+- **✨ Premium Motion System**: Integrated **Lenis** for tactile smooth scrolling and **Framer Motion** for graceful, staggered UI transitions.
+- **💎 Elegant Aesthetic**: A Vercel-inspired, old-money monochrome design built for sophisticated users and professional developers.
 - **⚡ Zero Config**: No Reddit API tokens, no accounts, no obstacles.
 
 ## 🛠️ Tech Stack
 
 - **Framework**: [Vite](https://vitejs.dev/) + [React 18](https://reactjs.org/)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/)
+- **Scrolling**: [Lenis](https://lenis.darkroom.engineering/)
 - **State Management**: [Zustand](https://github.com/pmndrs/zustand)
 - **Data Fetching**: [TanStack Query (v5)](https://tanstack.com/query/latest)
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
@@ -73,8 +76,11 @@ Ignition is pre-configured for **one-click deployment on Netlify**.
 ### 1. Topic Mapping
 Ignition uses a weighted scoring algorithm (`findRelevantSubreddits`) to map your intent to the best communities.
 
-### 2. Multi-Tier Fetching
-To ensure reliability, Ignition uses a **Resilience Engine** that cycles through multiple CORS proxies if a direct request is blocked. 
+### 2. Unbreakable Fetch Engine
+Ignition implements a three-tier defense strategy to bypass blocks and ensure content delivery:
+- **Tier 1**: Official Reddit host rotation (www, old, new) via high-performance CORS proxies.
+- **Tier 2**: Dynamic failover to **Libreddit** and **Teddit** instances.
+- **Tier 3**: Recursive deep distribution with exponential backoff.
 
 ### 3. TOON Format
 Content is transformed from messy JSON into a structured, token-efficient notation:
