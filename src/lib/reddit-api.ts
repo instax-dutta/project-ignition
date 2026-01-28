@@ -1,9 +1,50 @@
 import { RedditThread, RedditComment, TimeFilter } from '@/types/reddit.types';
 
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+// List of CORS proxies to try in order
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+  'https://api.codetabs.com/v1/proxy?quest=',
+];
 
-function encodeRedditUrl(url: string): string {
-  return CORS_PROXY + encodeURIComponent(url);
+async function fetchWithFallback(url: string): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const proxyUrl = proxy + encodeURIComponent(url);
+      const response = await fetch(proxyUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      // Check if response is actually JSON by peeking at content
+      const text = await response.text();
+      
+      // If it starts with HTML tags, it's not JSON
+      if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
+        throw new Error('Received HTML instead of JSON');
+      }
+      
+      // Parse and return as a new Response with the JSON
+      const data = JSON.parse(text);
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (error) {
+      lastError = error as Error;
+      console.warn(`Proxy ${proxy} failed:`, error);
+      continue;
+    }
+  }
+  
+  throw lastError || new Error('All proxies failed');
 }
 
 export async function searchSubreddit(
@@ -18,16 +59,7 @@ export async function searchSubreddit(
   )}&sort=${sort}&t=${time}&limit=${limit}&restrict_sr=1`;
 
   try {
-    const response = await fetch(encodeRedditUrl(url), {
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Reddit API error: ${response.status}`);
-    }
-
+    const response = await fetchWithFallback(url);
     const data = await response.json();
     return parseThreads(data);
   } catch (error) {
@@ -43,16 +75,7 @@ export async function fetchThreadWithComments(
   const url = `https://www.reddit.com/r/${subreddit}/comments/${threadId}.json?limit=100&depth=5`;
 
   try {
-    const response = await fetch(encodeRedditUrl(url), {
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Reddit API error: ${response.status}`);
-    }
-
+    const response = await fetchWithFallback(url);
     const data = await response.json();
     
     if (!Array.isArray(data) || data.length < 2) {
@@ -85,6 +108,7 @@ export async function fetchThreadWithComments(
     return null;
   }
 }
+
 
 export async function searchMultipleSubreddits(
   subreddits: string[],
