@@ -10,109 +10,90 @@ const CORS_PROXIES = [
   'https://yacdn.org/proxy/',
 ];
 
-// Shuffle proxies to avoid hitting the same one first every time
-const getShuffledProxies = () => [...CORS_PROXIES].sort(() => Math.random() - 0.5);
+const ALTERNATIVE_HOSTS = [
+  'https://www.reddit.com',
+  'https://old.reddit.com',
+  'https://new.reddit.com',
+];
+
+const LIBREDDIT_INSTANCES = [
+  'https://libreddit.spike.codes',
+  'https://safereddit.com',
+  'https://libreddit.northboot.xyz',
+];
+
+const getShuffledArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
 
 async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
+  const originalUrl = new URL(url);
+  const path = originalUrl.pathname + originalUrl.search;
   let lastError: Error | null = null;
-  const proxies = getShuffledProxies();
 
-  // Clean URL to prevent double encoding or trailing slashes that some proxies hate
-  const targetUrl = url.trim();
-  console.log(`[Ignition] 🚀 Initiating fetch: ${targetUrl}`);
+  const proxies = getShuffledArray(CORS_PROXIES);
+  const hosts = getShuffledArray(ALTERNATIVE_HOSTS);
+  const libreddits = getShuffledArray(LIBREDDIT_INSTANCES);
 
-  // Try direct fetch first (works if user has a CORS-disabling extension)
-  try {
-    const directResponse = await fetch(targetUrl + (targetUrl.includes('?') ? '&' : '?') + '___cb=' + Date.now(), {
-      mode: 'cors',
-      headers: { 'Accept': 'application/json' }
-    });
-    if (directResponse.ok) {
-      const data = await directResponse.json();
-      console.log('[Ignition] ✅ Direct fetch successful (CORS extension or local)!');
-      return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-  } catch (e) {
-    // Expected to fail on production without extension
-  }
+  console.log(`[Ignition] 🚀 Unbreakable engine activated for: ${path}`);
 
-  for (const proxy of proxies) {
-    try {
-      // Some proxies like corsproxy.io don't want encodeURIComponent for the whole URL
-      // but most standard ones do. We use encodeURIComponent as default.
-      const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=')
-        ? proxy + encodeURIComponent(targetUrl)
-        : proxy + targetUrl;
-
-      console.log(`[Ignition] 🛰️ Trying proxy: ${proxy}`);
-
-      const response = await fetch(proxyUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest', // Some proxies need this
-        }
-      });
-
-      if (response.status === 429) {
-        throw new Error('Proxy rate limited (429)');
-      }
-
-      if (!response.ok && response.status !== 200) {
-        throw new Error(`HTTP ${response.status} ${response.statusText}`);
-      }
-
-      const text = await response.text();
-      const trimmedText = text.trim();
-
-      // Smarter detection: Is it actually JSON?
-      let data;
+  // Tier 1: Official Reddit Hosts via Proxies
+  for (const host of hosts) {
+    const targetUrl = host + path;
+    for (const proxy of proxies) {
       try {
-        data = JSON.parse(trimmedText);
+        const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
+        console.log(`[Ignition] 🛰️ Tier 1 (Official) - Trying ${host} via ${proxy.split('/')[2]}`);
+
+        const response = await fetch(proxyUrl, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const text = await response.text();
+        if (text.trim().startsWith('<') || text.toLowerCase().includes('<!doctype')) throw new Error('Block Page');
+
+        let data = JSON.parse(text);
+        if (data && data.contents) data = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
+        if (!data || (!data.data && !Array.isArray(data))) throw new Error('Invalid Reddit Data');
+
+        console.log(`[Ignition] ✨ Tier 1 Success!`);
+        return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
-        // If parsing fails, and it looks like HTML, it's a block page
-        if (trimmedText.startsWith('<') || trimmedText.toLowerCase().includes('<!doctype') || trimmedText.toLowerCase().includes('<html')) {
-          console.warn(`[Ignition] ❌ Proxy ${proxy} returned HTML (Reddit block/Proxy demo page)`);
-          throw new Error('Received HTML instead of JSON');
-        }
-        throw new Error('Invalid JSON response');
+        lastError = e as Error;
+        continue;
       }
-
-      // Handle Wrapped Responses (e.g. AllOrigins /get)
-      if (data && typeof data === 'object' && 'contents' in data) {
-        console.log(`[Ignition] 📦 Unwrapping proxy payload...`);
-        data = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
-      }
-
-      // Validate Reddit Data Shape
-      if (!data || (!data.data && !Array.isArray(data))) {
-        throw new Error('Invalid Reddit payload structure');
-      }
-
-      console.log(`[Ignition] ✨ Successfully retrieved data via ${proxy}`);
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (error) {
-      lastError = error as Error;
-      console.warn(`[Ignition] 🛑 Proxy ${proxy} failed:`, lastError.message);
-
-      // Small delay before trying next proxy to avoid looking like a burst attack
-      await new Promise(resolve => setTimeout(resolve, 300));
-      continue;
     }
   }
 
-  // If we reach here, all proxies failed. Try one last recursive retry if allowed.
-  if (retries > 0) {
-    console.log(`[Ignition] 🔄 All proxies failed. Retrying in 1s... (${retries} retries left)`);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return fetchWithFallback(targetUrl, retries - 1);
+  // Tier 2: Libreddit Failover
+  console.warn('[Ignition] 🚑 Official hosts failed. Activating Tier 2: Libreddit Failover...');
+  for (const instance of libreddits) {
+    const targetUrl = instance + path;
+    // For failover, we try only the fastest 3 proxies to save time
+    for (const proxy of proxies.slice(0, 3)) {
+      try {
+        const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
+        console.log(`[Ignition] 🚑 Tier 2 (Failover) - Trying ${instance}`);
+
+        const response = await fetch(proxyUrl);
+        if (!response.ok) continue;
+
+        const text = await response.text();
+        let data = JSON.parse(text);
+        if (data && data.contents) data = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
+
+        if (data && (data.data || Array.isArray(data))) {
+          console.log(`[Ignition] 🏆 Tier 2 Success via ${instance}`);
+          return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+      } catch (e) { continue; }
+    }
   }
 
-  console.error('[Ignition] 💀 All proxies exhausted.');
-  throw lastError || new Error('All proxies failed to fetch content');
+  if (retries > 0) {
+    console.log(`[Ignition] 🔃 All layers failed. Retrying in 1.5s... (${retries} retries left)`);
+    await new Promise(r => setTimeout(r, 1500));
+    return fetchWithFallback(url, retries - 1);
+  }
+
+  throw lastError || new Error('All fetching layers exhausted');
 }
 
 export async function searchSubreddit(
