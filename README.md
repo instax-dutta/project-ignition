@@ -42,7 +42,7 @@ Most LLM scrapers fail because they treat Reddit like a flat document. Ignition 
 
 ```bash
 # Clone the repository
-git clone https://github.com/[your-username]/project-ignition.git
+git clone https://github.com/instax-dutta/project-ignition.git
 
 # Enter the project directory
 cd project-ignition
@@ -64,7 +64,7 @@ Ignition is pre-configured for **one-click deployment on Netlify**.
 - **Publish Directory**: `dist`
 - **Redirects**: Automatically handled by `netlify.toml` for Single Page Application (SPA) routing.
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/[your-username]/project-ignition)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/instax-dutta/project-ignition)
 
 ---
 

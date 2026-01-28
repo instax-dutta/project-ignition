@@ -15,6 +15,7 @@ import {
   Brain,
   ArrowLeft,
   Search,
+  LayoutTemplate,
 } from 'lucide-react';
 
 interface SearchTemplate {
@@ -99,6 +100,42 @@ const templates: SearchTemplate[] = [
     icon: <Heart className="h-6 w-6" />,
     tags: ['Health', 'Fitness', 'Wellness'],
     expectedResults: 'r/Fitness, r/loseit, r/meditation',
+  },
+  {
+    id: 'movie-recommendations',
+    title: 'Movie Suggestions',
+    description: 'Find your next favorite film with community-vetted recommendations',
+    query: 'movie recommendations',
+    icon: <TrendingUp className="h-6 w-6" />,
+    tags: ['Movies', 'Cinema', 'Entertainment'],
+    expectedResults: 'r/movies, r/MovieSuggestions',
+  },
+  {
+    id: 'programming-help',
+    title: 'Programming & Dev',
+    description: 'Coding help, software engineering discussions, and language-specific tips',
+    query: 'programming coding help',
+    icon: <Code className="h-6 w-6" />,
+    tags: ['Coding', 'Development', 'Tech'],
+    expectedResults: 'r/programming, r/webdev, r/Python',
+  },
+  {
+    id: 'science-future',
+    title: 'Science & Future',
+    description: 'Cutting-edge scientific research and futuristic technological trends',
+    query: 'science future technology',
+    icon: <Sparkles className="h-6 w-6" />,
+    tags: ['Science', 'Future', 'Innovation'],
+    expectedResults: 'r/science, r/askscience, r/Futurology',
+  },
+  {
+    id: 'design-inspiration',
+    title: 'Design Inspiration',
+    description: 'UI/UX design trends, graphic design showcases, and creative ideas',
+    query: 'design ui ux inspiration',
+    icon: <LayoutTemplate className="h-6 w-6" />,
+    tags: ['Design', 'UI/UX', 'Creative'],
+    expectedResults: 'r/design, r/web_design, r/UI_Design',
   },
 ];
 

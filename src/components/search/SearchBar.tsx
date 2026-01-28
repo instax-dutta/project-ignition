@@ -95,7 +95,7 @@ export function SearchBar({ value, onChange, onSearch, isLoading }: SearchBarPro
 
       {/* Suggestions Dropdown */}
       {showSuggestions && !value && (
-        <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-secondary border border-border rounded-lg shadow-card z-50 animate-fade-in">
+        <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-[#06080c] border border-border/80 rounded-lg shadow-2xl z-[100] animate-fade-in">
           <p className="text-sm text-muted-foreground mb-3">Popular topics</p>
           <div className="flex flex-wrap gap-2">
             {popularTopics.map((topic) => (
