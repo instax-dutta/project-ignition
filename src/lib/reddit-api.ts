@@ -25,6 +25,9 @@ const LIBREDDIT_INSTANCES = [
   'https://libreddit.projectsegfau.lt',
   'https://redlib.ducks.party',
   'https://redlib.va.vern.cc',
+  'https://redlib.perennialte.ch',
+  'https://redlib.kittywit.ch',
+  'https://redlib.nonbinary.social',
 ];
 
 const API_PROXY = '/api/proxy?url=';
@@ -151,7 +154,18 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
       .then(res => validateAndParse(res, 'HTML(new.reddit)'))
   );
 
-  // Strategy 4: Best Public Proxies -> Reddit (Direct browser fetch)
+  // Strategy 4: Direct Browser Race (CORS-friendly instances)
+  // Some instances allow direct browser fetching, which is the fastest lane.
+  const directInstances = ['https://safereddit.com', 'https://libreddit.spike.codes', 'https://redlib.perennialte.ch'];
+  directInstances.forEach(instance => {
+    const targetUrl = instance + path;
+    racers.push(
+      fetch(targetUrl)
+        .then(res => validateAndParse(res, `DirectBrowser(${instance})`))
+    );
+  });
+
+  // Strategy 5: Best Public Proxies -> Reddit (Direct browser fetch)
   const bestProxies = ['api.allorigins.win', 'corsproxy.io'];
   bestProxies.forEach(proxyBase => {
     const proxy = CORS_PROXIES.find(p => p.includes(proxyBase));

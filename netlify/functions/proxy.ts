@@ -23,6 +23,9 @@ export default async (request: Request, context: Context) => {
         "libreddit.projectsegfau.lt",
         "redlib.ducks.party",
         "redlib.va.vern.cc",
+        "redlib.perennialte.ch",
+        "redlib.kittywit.ch",
+        "redlib.nonbinary.social",
     ];
 
     try {
