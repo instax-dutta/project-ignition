@@ -1,92 +1,95 @@
 import { RedditThread, RedditComment, TimeFilter } from '@/types/reddit.types';
 
-// List of CORS proxies to try in order
 const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
   'https://thingproxy.freeboard.io/fetch/',
   'https://api.codetabs.com/v1/proxy?quest=',
   'https://cors-anywhere.herokuapp.com/',
-  'https://corsproxy.io/?',
   'https://proxy.cors.sh/',
+  'https://yacdn.org/proxy/',
 ];
 
 // Shuffle proxies to avoid hitting the same one first every time
 const getShuffledProxies = () => [...CORS_PROXIES].sort(() => Math.random() - 0.5);
 
-async function fetchWithFallback(url: string): Promise<Response> {
+async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   let lastError: Error | null = null;
   const proxies = getShuffledProxies();
-  console.log(`[Ignition] 🚀 Initiating fetch for: ${url}`);
 
-  // Try direct fetch first (in case of browser extensions or local development overrides)
+  // Clean URL to prevent double encoding or trailing slashes that some proxies hate
+  const targetUrl = url.trim();
+  console.log(`[Ignition] 🚀 Initiating fetch: ${targetUrl}`);
+
+  // Try direct fetch first (works if user has a CORS-disabling extension)
   try {
-    const directResponse = await fetch(url + (url.includes('?') ? '&' : '?') + '___cb=' + Date.now(), { mode: 'cors' });
+    const directResponse = await fetch(targetUrl + (targetUrl.includes('?') ? '&' : '?') + '___cb=' + Date.now(), {
+      mode: 'cors',
+      headers: { 'Accept': 'application/json' }
+    });
     if (directResponse.ok) {
       const data = await directResponse.json();
-      console.log('[Ignition] ✅ Direct fetch successful!');
+      console.log('[Ignition] ✅ Direct fetch successful (CORS extension or local)!');
       return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
   } catch (e) {
-    console.log('[Ignition] ℹ️ Direct fetch blocked by CORS (expected), trying proxies...');
+    // Expected to fail on production without extension
   }
 
   for (const proxy of proxies) {
     try {
-      const proxyUrl = proxy + encodeURIComponent(url);
+      // Some proxies like corsproxy.io don't want encodeURIComponent for the whole URL
+      // but most standard ones do. We use encodeURIComponent as default.
+      const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=')
+        ? proxy + encodeURIComponent(targetUrl)
+        : proxy + targetUrl;
+
       console.log(`[Ignition] 🛰️ Trying proxy: ${proxy}`);
 
       const response = await fetch(proxyUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest', // Some proxies need this
         }
       });
 
-      if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error('Proxy rate limited (429)');
+      }
+
+      if (!response.ok && response.status !== 200) {
         throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
 
       const text = await response.text();
       const trimmedText = text.trim();
 
-      console.log(`[Ignition] 📥 Received ${text.length} bytes from ${proxy}`);
-
       // Smarter detection: Is it actually JSON?
       let data;
       try {
         data = JSON.parse(trimmedText);
       } catch (e) {
-        // If parsing fails, and it looks like HTML, it's definitely a block page
-        if (trimmedText.startsWith('<') || trimmedText.toLowerCase().includes('<!doctype')) {
-          console.warn(`[Ignition] ❌ Proxy ${proxy} returned HTML (likely a block/demo page)`);
+        // If parsing fails, and it looks like HTML, it's a block page
+        if (trimmedText.startsWith('<') || trimmedText.toLowerCase().includes('<!doctype') || trimmedText.toLowerCase().includes('<html')) {
+          console.warn(`[Ignition] ❌ Proxy ${proxy} returned HTML (Reddit block/Proxy demo page)`);
           throw new Error('Received HTML instead of JSON');
         }
-        console.error(`[Ignition] ❌ JSON parse failed from ${proxy}:`, trimmedText.substring(0, 50) + '...');
         throw new Error('Invalid JSON response');
       }
 
-      // Unwrap AllOrigins /get wrapper if it somehow sneaks in
+      // Handle Wrapped Responses (e.g. AllOrigins /get)
       if (data && typeof data === 'object' && 'contents' in data) {
         console.log(`[Ignition] 📦 Unwrapping proxy payload...`);
-        const contents = data.contents;
-        if (typeof contents === 'string') {
-          try {
-            data = JSON.parse(contents);
-          } catch (e) {
-            console.warn(`[Ignition] ⚠️ Failed to parse payload contents as JSON`);
-          }
-        } else if (typeof contents === 'object') {
-          data = contents;
-        }
+        data = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
       }
 
       // Validate Reddit Data Shape
       if (!data || (!data.data && !Array.isArray(data))) {
-        console.warn(`[Ignition] ⚠️ Response from ${proxy} lacks Reddit structure:`, data);
-        throw new Error('Invalid Reddit payload');
+        throw new Error('Invalid Reddit payload structure');
       }
 
-      console.log(`[Ignition] ✨ Successfully retrieved data from ${proxy}`);
+      console.log(`[Ignition] ✨ Successfully retrieved data via ${proxy}`);
       return new Response(JSON.stringify(data), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -94,8 +97,18 @@ async function fetchWithFallback(url: string): Promise<Response> {
     } catch (error) {
       lastError = error as Error;
       console.warn(`[Ignition] 🛑 Proxy ${proxy} failed:`, lastError.message);
+
+      // Small delay before trying next proxy to avoid looking like a burst attack
+      await new Promise(resolve => setTimeout(resolve, 300));
       continue;
     }
+  }
+
+  // If we reach here, all proxies failed. Try one last recursive retry if allowed.
+  if (retries > 0) {
+    console.log(`[Ignition] 🔄 All proxies failed. Retrying in 1s... (${retries} retries left)`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return fetchWithFallback(targetUrl, retries - 1);
   }
 
   console.error('[Ignition] 💀 All proxies exhausted.');
