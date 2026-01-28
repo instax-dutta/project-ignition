@@ -122,7 +122,7 @@ const Index = () => {
               Templates
             </Button>
             <a
-              href="https://github.com"
+              href="https://github.com/instax-dutta/project-ignition"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors"

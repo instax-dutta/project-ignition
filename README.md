@@ -4,6 +4,8 @@
 
 Ignition is a high-performance extraction engine designed to bridge the gap between Reddit's massive knowledge base and Large Language Models (LLMs). It captures deep conversation context, preserves thread hierarchy, and optimizes the content for agentic ingestion using the **TOON (Token Optimized Object Notation)** format.
 
+Live at: **[ignition.sdad.pro](https://ignition.sdad.pro)**
+
 ---
 
 ## 🚀 The Mission
