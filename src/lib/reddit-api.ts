@@ -124,6 +124,8 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   // Strategy 0: Custom Home Hub (Highest Priority if set)
   // Run this on your RPi: npx cors-anywhere
   const customHub = typeof window !== 'undefined' ? localStorage.getItem('IGNITION_HUB') : null;
+  console.log(`[Ignition] 🏠 Home Hub Status: ${customHub ? 'ACTIVE (' + customHub + ')' : 'DISABLED'}`);
+
   if (customHub) {
     const hubUrl = customHub.endsWith('/') ? customHub : customHub + '/';
     racers.push(
