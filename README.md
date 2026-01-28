@@ -61,6 +61,17 @@ npm run dev
 
 ---
 
+### 🌐 IGNITION GRID (Community Proxies)
+To make Ignition robust for everyone, we maintain a list of community-hosted residential proxies.
+**Your hub is already live!** We added `https://cors.sdad.pro` to the default `COMMUNITY_HUBS` list.
+
+**To contribute another node:**
+1. Run `npx cors-anywhere` on your RPi/Server (Port 9999 recommended).
+2. Expose it via Cloudflare Tunnel or DDNS.
+3. Submit a PR adding your URL to `src/lib/reddit-api.ts`.
+
+These community nodes are used by all users as a high-priority lane to bypass Reddit's blocks. High quality, non-commercial use only.
+
 ## 📦 Deployment (Netlify)
 
 Ignition is pre-configured for **one-click deployment on Netlify**.
