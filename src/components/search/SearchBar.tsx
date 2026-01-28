@@ -45,12 +45,11 @@ export function SearchBar({ value, onChange, onSearch, isLoading }: SearchBarPro
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto relative">
       <div
-        className={`relative transition-all duration-300 ${
-          isFocused ? 'scale-[1.02]' : ''
-        }`}
+        className={`relative transition-all duration-300 ${isFocused ? 'scale-[1.02]' : ''
+          }`}
       >
         <div className="absolute inset-0 bg-primary/10 rounded-lg blur-xl opacity-0 transition-opacity duration-300 group-focus-within:opacity-100" />
-        
+
         <div className="relative flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -74,7 +73,7 @@ export function SearchBar({ value, onChange, onSearch, isLoading }: SearchBarPro
               Press /
             </span>
           </div>
-          
+
           <Button
             type="submit"
             variant="hero"
@@ -96,7 +95,7 @@ export function SearchBar({ value, onChange, onSearch, isLoading }: SearchBarPro
 
       {/* Suggestions Dropdown */}
       {showSuggestions && !value && (
-        <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-card border border-border rounded-lg shadow-card z-50 animate-fade-in">
+        <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-secondary border border-border rounded-lg shadow-card z-50 animate-fade-in">
           <p className="text-sm text-muted-foreground mb-3">Popular topics</p>
           <div className="flex flex-wrap gap-2">
             {popularTopics.map((topic) => (
