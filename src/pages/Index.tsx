@@ -155,9 +155,10 @@ const Index = () => {
               href="https://github.com/instax-dutta/project-ignition"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all duration-300 border border-transparent hover:border-primary/20"
             >
-              <Github className="h-5 w-5" />
+              <Github className="h-4 w-4" />
+              <span className="hidden sm:inline">Contribute Now</span>
             </a>
           </div>
         </div>

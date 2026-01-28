@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   Search,
   LayoutTemplate,
+  Github,
 } from 'lucide-react';
 
 interface SearchTemplate {
@@ -180,11 +181,22 @@ const Templates = () => {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
-            <div className="flex items-center gap-2">
-              <FileText className="h-6 w-6 text-primary" />
-              <span className="font-heading text-xl font-semibold">
-                Ignition
-              </span>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://github.com/instax-dutta/project-ignition"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all duration-300 border border-transparent hover:border-primary/20"
+              >
+                <Github className="h-4 w-4" />
+                <span className="hidden sm:inline">Contribute Now</span>
+              </a>
+              <div className="flex items-center gap-2">
+                <FileText className="h-6 w-6 text-primary" />
+                <span className="font-heading text-xl font-semibold">
+                  Ignition
+                </span>
+              </div>
             </div>
           </div>
         </div>
