@@ -63,7 +63,8 @@ npm run dev
 
 ### 🌐 IGNITION GRID (Community Proxies)
 To make Ignition robust for everyone, we maintain a list of community-hosted residential proxies.
-**Your hub is already live!** We added `https://cors.sdad.pro` to the default `COMMUNITY_HUBS` list.
+**Your hub is already live!** We support adding any number of hidden hubs via environment variables.
+
 
 **To contribute another node:**
 1. Run `npx cors-anywhere` on your RPi/Server (Port 9999 recommended).
@@ -111,6 +112,13 @@ To make Ignition robust for everyone, we use a grid of community-hosted resident
 1. Run `npx cors-anywhere` on your RPi/Server (Port 9999 recommended).
 2. Expose it via Cloudflare Tunnel or DDNS.
 3. Configure it as a `VITE_HIDDEN_HUBS` environment variable in your deployment (comma-separated).
+4. **Safety & Privacy**: We verify hubs via our Grid Protocol.
+
+### 🛡️ Privacy & Safety Resources
+Ignition monitors public proxy sources to maintain the health of the grid. Special thanks to these projects for their open datasets:
+- **[Bes-js/public-proxy-list](https://github.com/Bes-js/public-proxy-list)**: Continuous feed of public proxies.
+- **[chill117/proxy-lists](https://github.com/chill117/proxy-lists)**: Comprehensive proxy aggregation.
+
 
 This allows the community to share resources securely without exposing exact locations publicly.
 

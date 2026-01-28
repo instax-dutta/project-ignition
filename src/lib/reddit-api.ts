@@ -1,4 +1,6 @@
 import { RedditThread, RedditComment, TimeFilter } from '@/types/reddit.types';
+import { fetchPublicProxies } from './public-proxies';
+
 
 const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=',
@@ -249,6 +251,11 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   }
 
   throw lastError || new Error('All fetching layers exhausted');
+}
+
+// Initialize background proxy fetch (Safety Net)
+if (typeof window !== 'undefined') {
+  fetchPublicProxies().catch(e => console.error('[Ignition] Proxy fetch failed', e));
 }
 
 export async function searchSubreddit(
