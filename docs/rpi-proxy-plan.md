@@ -7,7 +7,7 @@ This plan outlines the integration of a Raspberry Pi "Residential Proxy" to bypa
 ### 1. Residential Proxy (RPi)
 - **Software**: `cors-anywhere` running via Node.js.
 - **Access**: Villa's RPi (`villa@villa.local`) on the local network.
-- **Port**: 8080 (default).
+- **Port**: 9999.
 - **Security**: Cloudflare Tunnel for secure, worldwide exposure without port forwarding.
 
 ### 2. Ignition Integration
@@ -19,8 +19,8 @@ This plan outlines the integration of a Raspberry Pi "Residential Proxy" to bypa
 ### Phase A: RPi Setup (Villa@villa.local)
 1. **Connectivity**: Verify SSH access and network visibility.
 2. **Environment**: Ensure `node` and `npm` are installed on the RPi.
-3. **Execution**: Run `npx cors-anywhere` on the RPi and confirm the port.
-4. **Tunneling**: Instructions for user to point Cloudflare Tunnel to the RPi's local IP and port.
+3. **Execution**: Run `export PORT=9999; npx cors-anywhere` on the RPi and confirm the port.
+4. **Tunneling**: Instructions for user to point Cloudflare Tunnel to the RPi's local IP and port 9999.
 
 ### Phase B: Project Integration
 1. **API Update**: (Completed) `src/lib/reddit-api.ts` already supports `localStorage.getItem('IGNITION_HUB')`.
