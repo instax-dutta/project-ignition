@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { SearchBar } from '@/components/search/SearchBar';
+import { SearchFilters } from '@/components/search/SearchFilters';
 import { SubredditList } from '@/components/search/SubredditBadge';
 import { ThreadGrid } from '@/components/threads/ThreadGrid';
+import { ThreadPreviewModal } from '@/components/threads/ThreadPreviewModal';
 import { ExportPanel } from '@/components/export/ExportPanel';
 import { SuccessModal } from '@/components/export/SuccessModal';
 import { FloatingExportButton } from '@/components/export/FloatingExportButton';
@@ -15,17 +18,19 @@ import {
   Zap, 
   Shield,
   ChevronDown,
-  Github
+  Github,
+  LayoutTemplate
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
 
 const Index = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
   const {
     query,
     setQuery,
@@ -34,6 +39,11 @@ const Index = () => {
     isLoading,
     error,
     search,
+    fetchComments,
+    timeFilter,
+    setTimeFilter,
+    sortOption,
+    setSortOption,
   } = useRedditSearch();
 
   const {
@@ -48,10 +58,22 @@ const Index = () => {
   } = useThreadSelection();
 
   const [showExportPanel, setShowExportPanel] = useState(false);
+  const [previewThread, setPreviewThread] = useState<RedditThread | null>(null);
   const [successData, setSuccessData] = useState<{
     filename: string;
     savings: { originalTokens: number; toonTokens: number; savings: number };
   } | null>(null);
+
+  // Handle URL parameters from templates
+  useEffect(() => {
+    const q = searchParams.get('q');
+    const autoSearch = searchParams.get('autoSearch');
+    if (q && autoSearch === 'true') {
+      setQuery(q);
+      // Delay search to allow state to update
+      setTimeout(() => search(), 100);
+    }
+  }, [searchParams]);
 
   const handleSearch = async () => {
     clearAll();
@@ -72,6 +94,10 @@ const Index = () => {
     clearAll();
   };
 
+  const handleThreadClick = (thread: RedditThread) => {
+    setPreviewThread(thread);
+  };
+
   const hasSearched = threads.length > 0 || subreddits.length > 0;
 
   return (
@@ -86,6 +112,15 @@ const Index = () => {
             </span>
           </div>
           <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/templates')}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <LayoutTemplate className="h-4 w-4 mr-2" />
+              Templates
+            </Button>
             <a 
               href="https://github.com" 
               target="_blank" 
@@ -129,6 +164,18 @@ const Index = () => {
               />
             </div>
 
+            {/* Templates Link */}
+            <div className="animate-fade-in" style={{ animationDelay: '150ms' }}>
+              <Button
+                variant="link"
+                onClick={() => navigate('/templates')}
+                className="text-muted-foreground hover:text-primary"
+              >
+                <LayoutTemplate className="h-4 w-4 mr-2" />
+                Or try a pre-built template
+              </Button>
+            </div>
+
             {/* Features */}
             <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto pt-12 animate-fade-in" style={{ animationDelay: '200ms' }}>
               <div className="p-6 bg-card/30 rounded-xl border border-border/30">
@@ -166,7 +213,7 @@ const Index = () => {
       {hasSearched && (
         <main className="container mx-auto px-4 py-8 pb-32">
           {/* Search Bar (compact) */}
-          <div className="mb-8">
+          <div className="mb-6">
             <SearchBar
               value={query}
               onChange={setQuery}
@@ -175,12 +222,20 @@ const Index = () => {
             />
           </div>
 
+          {/* Filters */}
+          <div className="mb-6">
+            <SearchFilters
+              timeFilter={timeFilter}
+              onTimeFilterChange={setTimeFilter}
+              sortOption={sortOption}
+              onSortOptionChange={setSortOption}
+            />
+          </div>
+
           {/* Subreddit Results */}
           <div className="mb-8">
             <SubredditList subreddits={subreddits} isLoading={isLoading} />
           </div>
-
-          {/* Error state is now handled in ThreadGrid */}
 
           {/* Thread Results */}
           <ThreadGrid
@@ -193,6 +248,7 @@ const Index = () => {
             onClearAll={clearAll}
             onSelectTopN={(n) => selectTopN(threads, n)}
             selectedCount={selectedCount}
+            onThreadClick={handleThreadClick}
             onRetry={handleSearch}
           />
 
@@ -209,6 +265,14 @@ const Index = () => {
           )}
         </main>
       )}
+
+      {/* Thread Preview Modal */}
+      <ThreadPreviewModal
+        thread={previewThread}
+        isOpen={!!previewThread}
+        onClose={() => setPreviewThread(null)}
+        onFetchComments={fetchComments}
+      />
 
       {/* Floating Export Button */}
       <FloatingExportButton

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RedditThread, SubredditMatch, TimeFilter } from '@/types/reddit.types';
+import { RedditThread, SubredditMatch, TimeFilter, SortOption } from '@/types/reddit.types';
 import { findRelevantSubreddits } from '@/lib/subreddit-database';
 import { searchMultipleSubreddits, fetchThreadWithComments } from '@/lib/reddit-api';
 
@@ -15,22 +15,25 @@ interface UseRedditSearchReturn {
   fetchComments: (thread: RedditThread) => Promise<RedditThread | null>;
   timeFilter: TimeFilter;
   setTimeFilter: (filter: TimeFilter) => void;
+  sortOption: SortOption;
+  setSortOption: (sort: SortOption) => void;
 }
 
 export function useRedditSearch(): UseRedditSearchReturn {
   const [query, setQuery] = useState('');
   const [subreddits, setSubreddits] = useState<SubredditMatch[]>([]);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('week');
+  const [sortOption, setSortOption] = useState<SortOption>('top');
   const queryClient = useQueryClient();
 
   const { data: threads = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['reddit-search', query, subreddits.map(s => s.name), timeFilter],
+    queryKey: ['reddit-search', query, subreddits.map(s => s.name), timeFilter, sortOption],
     queryFn: async () => {
       if (!query || subreddits.length === 0) return [];
       return searchMultipleSubreddits(
         subreddits.map(s => s.name),
         query,
-        'top',
+        sortOption,
         timeFilter
       );
     },
@@ -49,11 +52,11 @@ export function useRedditSearch(): UseRedditSearchReturn {
     // Trigger the search query
     if (matches.length > 0) {
       await queryClient.invalidateQueries({ 
-        queryKey: ['reddit-search', query, matches.map(s => s.name), timeFilter] 
+        queryKey: ['reddit-search', query, matches.map(s => s.name), timeFilter, sortOption] 
       });
       refetch();
     }
-  }, [query, timeFilter, queryClient, refetch]);
+  }, [query, timeFilter, sortOption, queryClient, refetch]);
 
   const fetchComments = useCallback(async (thread: RedditThread): Promise<RedditThread | null> => {
     return fetchThreadWithComments(thread.subreddit, thread.id);
@@ -70,5 +73,7 @@ export function useRedditSearch(): UseRedditSearchReturn {
     fetchComments,
     timeFilter,
     setTimeFilter,
+    sortOption,
+    setSortOption,
   };
 }
