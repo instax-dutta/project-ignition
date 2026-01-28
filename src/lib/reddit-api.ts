@@ -20,6 +20,8 @@ const LIBREDDIT_INSTANCES = [
   'https://libreddit.spike.codes',
   'https://safereddit.com',
   'https://libreddit.northboot.xyz',
+  'https://libreddit.oxymat.com',
+  'https://libreddit.tinfoil-hat.net',
 ];
 
 const API_PROXY = '/api/proxy?url=';
@@ -45,16 +47,20 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
       console.log(`[Ignition] ⚡ Tier 0 (Dedicated) - Trying ${host} via Local Bridge`);
       const response = await fetch(API_PROXY + encodeURIComponent(targetUrl));
 
-      if (response.ok) {
+      const contentType = response.headers.get("content-type");
+      if (response.ok && contentType?.includes("application/json")) {
         const text = await response.text();
         const data = JSON.parse(text);
         if (data && (data.data || Array.isArray(data))) {
           console.log(`[Ignition] ✨ Tier 0 Success!`);
           return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
+      } else {
+        const errorText = await response.text().catch(() => "Unknown error");
+        console.warn(`[Ignition] ⚠️ Tier 0 Status ${response.status} for ${host}. Content-Type: ${contentType}. Body length: ${errorText.length}`);
       }
     } catch (e) {
-      console.warn(`[Ignition] ⚠️ Tier 0 failed for ${host}, falling back...`);
+      console.warn(`[Ignition] ⚠️ Tier 0 Network Error for ${host}:`, e);
     }
   }
 
