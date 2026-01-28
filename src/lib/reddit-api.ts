@@ -22,6 +22,8 @@ const LIBREDDIT_INSTANCES = [
   'https://libreddit.northboot.xyz',
 ];
 
+const API_PROXY = '/api/proxy?url=';
+
 const getShuffledArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
 
 async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
@@ -35,13 +37,34 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
 
   console.log(`[Ignition] 🚀 Unbreakable engine activated for: ${path}`);
 
-  // Tier 1: Official Reddit Hosts via Proxies
+  // Tier 0: Direct Local Proxy (Netlify Function)
+  // This is our most reliable path as it's our own infra
+  for (const host of hosts) {
+    const targetUrl = host + path;
+    try {
+      console.log(`[Ignition] ⚡ Tier 0 (Dedicated) - Trying ${host} via Local Bridge`);
+      const response = await fetch(API_PROXY + encodeURIComponent(targetUrl));
+
+      if (response.ok) {
+        const text = await response.text();
+        const data = JSON.parse(text);
+        if (data && (data.data || Array.isArray(data))) {
+          console.log(`[Ignition] ✨ Tier 0 Success!`);
+          return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+    } catch (e) {
+      console.warn(`[Ignition] ⚠️ Tier 0 failed for ${host}, falling back...`);
+    }
+  }
+
+  // Tier 1: Official Reddit Hosts via Public Proxies
   for (const host of hosts) {
     const targetUrl = host + path;
     for (const proxy of proxies) {
       try {
         const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
-        console.log(`[Ignition] 🛰️ Tier 1 (Official) - Trying ${host} via ${proxy.split('/')[2]}`);
+        console.log(`[Ignition] 🛰️ Tier 1 (Public) - Trying ${host} via ${proxy.split('/')[2]}`);
 
         const response = await fetch(proxyUrl, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -63,7 +86,7 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   }
 
   // Tier 2: Libreddit Failover
-  console.warn('[Ignition] 🚑 Official hosts failed. Activating Tier 2: Libreddit Failover...');
+  console.warn('[Ignition] 🚑 Public proxies failed. Activating Tier 2: Libreddit Failover...');
   for (const instance of libreddits) {
     const targetUrl = instance + path;
     // For failover, we try only the fastest 3 proxies to save time

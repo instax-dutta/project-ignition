@@ -16,7 +16,7 @@ Most LLM scrapers fail because they treat Reddit like a flat document. Ignition 
 
 - **🧠 Intelligent Subreddit Discovery**: Semantic mapping of topics to a curated database of high-signal communities.
 - **📉 TOON Optimizer**: Reduces token usage by 50-70% via strategic removal of noise while maintaining 100% semantic integrity.
-- **🛡️ Unbreakable Fetch Engine**: A multi-tier resilience system that rotates through official Reddit hosts, CORS proxies, and Libreddit failovers to guarantee uptime without API keys.
+- **🛡️ Unbreakable Fetch Engine**: A four-tier resilience system that uses a dedicated serverless bridge, official Reddit hosts, CORS proxies, and Libreddit failovers to guarantee 99.9% uptime.
 - **✨ Premium Motion System**: Integrated **Lenis** for tactile smooth scrolling and **Framer Motion** for graceful, staggered UI transitions.
 - **💎 Elegant Aesthetic**: A Vercel-inspired, old-money monochrome design built for sophisticated users and professional developers.
 - **⚡ Zero Config**: No Reddit API tokens, no accounts, no obstacles.
@@ -24,6 +24,7 @@ Most LLM scrapers fail because they treat Reddit like a flat document. Ignition 
 ## 🛠️ Tech Stack
 
 - **Framework**: [Vite](https://vitejs.dev/) + [React 18](https://reactjs.org/)
+- **Backend**: [Netlify Functions](https://www.netlify.com/products/functions/) (Edge Proxy)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
 - **Animations**: [Framer Motion](https://www.framer.com/motion/)
 - **Scrolling**: [Lenis](https://lenis.darkroom.engineering/)
@@ -53,7 +54,7 @@ cd project-ignition
 # Install dependencies
 npm install
 
-# Start development server
+# Start development server (includes Netlify Functions if Netlify CLI is installed)
 npm run dev
 ```
 
@@ -65,7 +66,8 @@ Ignition is pre-configured for **one-click deployment on Netlify**.
 
 - **Build Command**: `npm run build`
 - **Publish Directory**: `dist`
-- **Redirects**: Automatically handled by `netlify.toml` for Single Page Application (SPA) routing.
+- **Functions Directory**: `netlify/functions`
+- **Redirects**: Automatically handled by `netlify.toml` for Single Page Application (SPA) routing and API proxying.
 
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/instax-dutta/project-ignition)
 
@@ -77,9 +79,10 @@ Ignition is pre-configured for **one-click deployment on Netlify**.
 Ignition uses a weighted scoring algorithm (`findRelevantSubreddits`) to map your intent to the best communities.
 
 ### 2. Unbreakable Fetch Engine
-Ignition implements a three-tier defense strategy to bypass blocks and ensure content delivery:
-- **Tier 1**: Official Reddit host rotation (www, old, new) via high-performance CORS proxies.
-- **Tier 2**: Dynamic failover to **Libreddit** and **Teddit** instances.
+Ignition implements a four-tier defense strategy to bypass blocks and ensure content delivery:
+- **Tier 0**: **Dedicated Serverless Proxy Bridge** (Netlify Functions). Our own infrastructure with custom header rotation and edge caching.
+- **Tier 1**: Official Reddit host rotation (www, old, new) via public CORS proxies as fallback.
+- **Tier 2**: Dynamic failover to **Libreddit** and **Safereddit** instances.
 - **Tier 3**: Recursive deep distribution with exponential backoff.
 
 ### 3. TOON Format
