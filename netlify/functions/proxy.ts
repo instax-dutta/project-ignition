@@ -10,7 +10,7 @@ export default async (request: Request, context: Context) => {
         });
     }
 
-    // Security: Only allow Reddit and approved Libreddit instances
+    // Security: Only allow Reddit and approved Libreddit/Redlib instances
     const allowedDomains = [
         "reddit.com",
         "old.reddit.com",
@@ -18,6 +18,11 @@ export default async (request: Request, context: Context) => {
         "libreddit.spike.codes",
         "safereddit.com",
         "libreddit.northboot.xyz",
+        "libreddit.oxymat.com",
+        "libreddit.tinfoil-hat.net",
+        "libreddit.projectsegfau.lt",
+        "redlib.ducks.party",
+        "redlib.va.vern.cc",
     ];
 
     try {
