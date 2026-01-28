@@ -33,17 +33,48 @@ const getShuffledArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random()
 
 async function validateAndParse(response: Response, source: string): Promise<any> {
   const contentType = response.headers.get("content-type");
+  const isHtml = contentType?.includes("text/html");
   if (!response.ok) throw new Error(`${source}: HTTP ${response.status}`);
-  if (!contentType?.includes("application/json")) throw new Error(`${source}: Not JSON (${contentType})`);
 
   const text = await response.text();
+
+  if (isHtml) {
+    console.log(`[Ignition] 🔍 Attempting HTML extraction from ${source}...`);
+    return extractDataFromHtml(text, source);
+  }
+
+  if (!contentType?.includes("application/json")) throw new Error(`${source}: Not JSON/HTML (${contentType})`);
   const data = JSON.parse(text);
 
-  // Validate basic Reddit structure
   if (data && (data.data || Array.isArray(data))) {
     return data;
   }
   throw new Error(`${source}: Invalid Reddit Schema`);
+}
+
+function extractDataFromHtml(html: string, source: string): any {
+  try {
+    // Strategy 1: Look for window.___r = { ... } (Modern Reddit)
+    const stateMatch = html.match(/window\.___r\s*=\s*({.+?});/);
+    if (stateMatch) {
+      const state = JSON.parse(stateMatch[1]);
+      // Mapping modern state to API format
+      // This is a simplified version, focusing on search and thread data
+      if (state.posts?.models) {
+        return { data: { children: Object.values(state.posts.models).map((p: any) => ({ kind: 't3', data: p })) } };
+      }
+    }
+
+    // Strategy 2: Look for JSON in <script id="data"> (Old alternative)
+    const scriptMatch = html.match(/<script id="data">({.+?})<\/script>/);
+    if (scriptMatch) {
+      return JSON.parse(scriptMatch[1]);
+    }
+
+    throw new Error('No data found in HTML');
+  } catch (e) {
+    throw new Error(`${source}: HTML Extraction failed - ${(e as Error).message}`);
+  }
 }
 
 async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
@@ -79,13 +110,23 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
     );
   });
 
-  // Strategy 3: Best Public Proxies -> Reddit (Direct browser fetch)
-  // These use different IPs (the user's browser or the proxy's server)
+  // Strategy 3: HTML Scraper Race (Local Bridge -> HTML URL)
+  // Standard HTML is rarely blocked as aggressively as .json
+  const htmlUrl = url.replace('.json', '');
+  hosts.slice(0, 1).forEach(host => {
+    const targetUrl = host + new URL(htmlUrl).pathname + new URL(htmlUrl).search;
+    racers.push(
+      fetch(API_PROXY + encodeURIComponent(targetUrl))
+        .then(res => validateAndParse(res, `HTMLScraper(${host})`))
+    );
+  });
+
+  // Strategy 4: Best Public Proxies -> Reddit (Direct browser fetch)
   const bestProxies = ['api.allorigins.win', 'corsproxy.io'];
   bestProxies.forEach(proxyBase => {
     const proxy = CORS_PROXIES.find(p => p.includes(proxyBase));
     if (proxy) {
-      const targetUrl = hosts[0] + path; // Try main host
+      const targetUrl = hosts[0] + path;
       const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
       racers.push(
         fetch(proxyUrl)
