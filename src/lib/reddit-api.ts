@@ -30,9 +30,10 @@ const LIBREDDIT_INSTANCES = [
   'https://redlib.nonbinary.social',
 ];
 
-const COMMUNITY_HUBS = [
-  'https://cors.sdad.pro',
-];
+const COMMUNITY_HUBS = (import.meta.env.VITE_HIDDEN_HUBS || '')
+  .split(',')
+  .filter(Boolean)
+  .map((url: string) => url.trim());
 
 const API_PROXY = '/api/proxy?url=';
 
@@ -142,7 +143,7 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
 
   // Strategy 0.5: Community Grid (Packet Buddy Network)
   // These are residential proxies donated by the community
-  const communityHubs = getShuffledArray(COMMUNITY_HUBS);
+  const communityHubs = getShuffledArray(COMMUNITY_HUBS) as string[];
   communityHubs.forEach(hubUrl => {
     const cleanHub = hubUrl.endsWith('/') ? hubUrl : hubUrl + '/';
     racers.push(
