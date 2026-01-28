@@ -104,6 +104,16 @@ If Reddit aggressively blocks cloud IPs (Netlify/Vercel), you can activate **Res
     ```
     To disable: `localStorage.removeItem('IGNITION_HUB')`.
 
+### 🌐 IGNITION GRID (Community Proxies)
+To make Ignition robust for everyone, we use a grid of community-hosted residential proxies.
+
+**To contribute a node:**
+1. Run `npx cors-anywhere` on your RPi/Server (Port 9999 recommended).
+2. Expose it via Cloudflare Tunnel or DDNS.
+3. Configure it as a `VITE_HIDDEN_HUBS` environment variable in your deployment (comma-separated).
+
+This allows the community to share resources securely without exposing exact locations publicly.
+
 ## 🏗️ Architecture: How it works
 
 ### 1. Topic Mapping
