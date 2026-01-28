@@ -116,24 +116,25 @@ export async function searchMultipleSubreddits(
   sort: string = 'top',
   time: TimeFilter = 'week'
 ): Promise<RedditThread[]> {
+  // Use Promise.allSettled for graceful failure handling - faster than waiting for all to fail
   const promises = subreddits.map((sub) => searchSubreddit(sub, query, sort, time, 10));
-  const results = await Promise.all(promises);
+  const results = await Promise.allSettled(promises);
   
-  // Flatten and dedupe by thread ID
-  const seen = new Set<string>();
-  const threads: RedditThread[] = [];
+  // Flatten and dedupe by thread ID using a Map for O(1) lookups
+  const threadsMap = new Map<string, RedditThread>();
   
-  for (const subThreads of results) {
-    for (const thread of subThreads) {
-      if (!seen.has(thread.id)) {
-        seen.add(thread.id);
-        threads.push(thread);
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      for (const thread of result.value) {
+        if (!threadsMap.has(thread.id)) {
+          threadsMap.set(thread.id, thread);
+        }
       }
     }
   }
 
-  // Sort by relevance score (score * upvote ratio)
-  return threads.sort((a, b) => {
+  // Convert to array and sort by relevance score (score * upvote ratio)
+  return Array.from(threadsMap.values()).sort((a, b) => {
     const scoreA = a.score * a.upvoteRatio;
     const scoreB = b.score * b.upvoteRatio;
     return scoreB - scoreA;
