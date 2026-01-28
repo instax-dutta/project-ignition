@@ -74,6 +74,25 @@ Ignition is pre-configured for **one-click deployment on Netlify**.
 
 ---
 
+---
+
+## 🏠 Residential Mode (RPi Hub)
+
+If Reddit aggressively blocks cloud IPs (Netlify/Vercel), you can activate **Residential Mode** by hosting a tiny proxy on your home network (e.g., Raspberry Pi).
+
+1.  **Run on RPi** (Port 9999):
+    ```bash
+    export PORT=9999
+    nohup npx cors-anywhere > proxy.log 2>&1 &
+    ```
+2.  **Expose**: Use Cloudflare Tunnel to point a public URL (e.g., `https://hub.yoursite.com`) to `localhost:9999`.
+3.  **Activate**:
+    Open Ignition console (F12) and run:
+    ```javascript
+    localStorage.setItem('IGNITION_HUB', 'https://hub.yoursite.com');
+    ```
+    To disable: `localStorage.removeItem('IGNITION_HUB')`.
+
 ## 🏗️ Architecture: How it works
 
 ### 1. Topic Mapping
