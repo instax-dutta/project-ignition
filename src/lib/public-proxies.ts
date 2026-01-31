@@ -1,5 +1,15 @@
 
 
+
+let proxyPool: string[] = [];
+
+/**
+ * Returns the currently discovered public proxies.
+ */
+export function getProxyPool(): string[] {
+    return proxyPool;
+}
+
 const PROXY_SOURCES = [
     'https://raw.githubusercontent.com/Bes-js/public-proxy-list/main/proxy-list.txt'
 ];
@@ -12,7 +22,7 @@ const PROXY_SOURCES = [
 export async function fetchPublicProxies(): Promise<string[]> {
     const allProxies: string[] = [];
 
-    console.log('[Ignition] 🛡️ UDPATING PUBLIC PROXY DEFENSE LIST...');
+    console.log('[Ignition] 🛡️ UPDATING PUBLIC PROXY DEFENSE LIST...');
 
     for (const source of PROXY_SOURCES) {
         try {
@@ -34,6 +44,8 @@ export async function fetchPublicProxies(): Promise<string[]> {
 
     // Deduplicate
     const unique = [...new Set(allProxies)];
+    proxyPool = unique;
     console.log(`[Ignition] 🛡️ Total Public Proxies in Reserve: ${unique.length}`);
     return unique;
 }
+

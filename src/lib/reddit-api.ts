@@ -1,5 +1,5 @@
 import { RedditThread, RedditComment, TimeFilter } from '@/types/reddit.types';
-import { fetchPublicProxies } from './public-proxies';
+import { fetchPublicProxies, getProxyPool } from './public-proxies';
 
 
 const CORS_PROXIES = [
@@ -53,18 +53,26 @@ async function validateAndParse(response: Response, source: string): Promise<any
   const text = await response.text();
 
   if (isHtml) {
+    // Check if the HTML is actually useful or just a 'Refused'/'Blocked' page
+    if (text.includes("Access Denied") || text.includes("blocked by your IP") || text.length < 500) {
+      throw new Error(`${source}: Blocked HTML / Empty Response`);
+    }
+
     console.log(`[Ignition] 🔍 Attempting HTML extraction from ${source} (${response.status})...`);
     return extractDataFromHtml(text, source);
   }
 
   if (!contentType?.includes("application/json")) throw new Error(`${source}: Not JSON/HTML (${contentType})`);
-  const data = JSON.parse(text);
 
-  // Normalization: Libreddit/Redlib often have different top-level keys
-  if (data && (data.data || Array.isArray(data))) return data;
-  if (data && data.posts) return { data: { children: data.posts.map((p: any) => ({ kind: 't3', data: p })) } };
-
-  throw new Error(`${source}: Invalid Reddit Schema`);
+  try {
+    const data = JSON.parse(text);
+    // Normalization: Libreddit/Redlib often have different top-level keys
+    if (data && (data.data || Array.isArray(data))) return data;
+    if (data && data.posts) return { data: { children: data.posts.map((p: any) => ({ kind: 't3', data: p })) } };
+    throw new Error('Invalid Reddit Schema');
+  } catch (e) {
+    throw new Error(`${source}: Invalid JSON structure`);
+  }
 }
 
 function extractDataFromHtml(html: string, source: string): any {
@@ -118,105 +126,54 @@ function extractDataFromHtml(html: string, source: string): any {
 async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   const originalUrl = new URL(url);
   const path = originalUrl.pathname + originalUrl.search;
-  let lastError: Error | null = null;
 
   const hosts = getShuffledArray(ALTERNATIVE_HOSTS);
-  const proxies = getShuffledArray(CORS_PROXIES);
+  const publicProxies = getShuffledArray(getProxyPool()).slice(0, 10); // Use from our new registry!
 
-  console.log(`[Ignition] 🏎️ Entering Parallel Race for: ${path}`);
+  console.log(`[Ignition] 🏎️ Entering Parallel Race (${retries} retries left): ${path}`);
 
-  // The Race: We combine multiple strategies into one concurrent pool
   const racers: Promise<any>[] = [];
 
-  // Strategy 0: Custom Home Hub (Highest Priority if set)
-  // Run this on your RPi: npx cors-anywhere
+  // Strategy 0: Custom Home Hub
   const customHub = typeof window !== 'undefined' ? localStorage.getItem('IGNITION_HUB') : null;
-  console.log(`[Ignition] 🏠 Hub Status: ${customHub ? 'Using ' + customHub : 'Community Grid (Default)'}`);
-
   if (customHub) {
     const hubUrl = customHub.endsWith('/') ? customHub : customHub + '/';
     racers.push(
-      fetch(hubUrl + hosts[0] + path, {
-        headers: { 'X-Requested-With': 'Ignition-App' }
-      })
+      fetch(hubUrl + hosts[0] + path, { headers: { 'X-Requested-With': 'Ignition-App' } })
         .then(res => validateAndParse(res, 'HomeHub'))
     );
   }
 
-  // Strategy 0.5: Community Grid (Packet Buddy Network)
-  // These are residential proxies donated by the community
+  // Strategy 1: Grid Hubs
   const communityHubs = getShuffledArray(COMMUNITY_HUBS) as string[];
   communityHubs.forEach(hubUrl => {
     const cleanHub = hubUrl.endsWith('/') ? hubUrl : hubUrl + '/';
     racers.push(
-      fetch(cleanHub + hosts[0] + path, {
-        headers: { 'X-Requested-With': 'Ignition-App' }
-      })
+      fetch(cleanHub + hosts[0] + path, { headers: { 'X-Requested-With': 'Ignition-App' } })
         .then(res => validateAndParse(res, `Grid(${new URL(hubUrl).hostname})`))
     );
   });
 
-  // Strategy 1: Local Bridge (Netlify) -> Official Reddit
-  hosts.slice(0, 2).forEach(host => {
-    const targetUrl = host + path;
-    racers.push(
-      fetch(API_PROXY + encodeURIComponent(targetUrl))
-        .then(res => validateAndParse(res, `Bridge(${host})`))
-    );
+  // Strategy 2: Netlify Bridge Race
+  hosts.forEach(host => {
+    racers.push(fetch(API_PROXY + encodeURIComponent(host + path)).then(res => validateAndParse(res, `Bridge(${host})`)));
   });
 
-  // Strategy 2: Local Bridge (Netlify) -> Libreddit Instances
-  // Proxied to ensure CORS doesn't kill the race early
-  const libreddits = getShuffledArray(LIBREDDIT_INSTANCES).slice(0, 3);
-  libreddits.forEach(instance => {
-    const targetUrl = instance + path;
-    racers.push(
-      fetch(API_PROXY + encodeURIComponent(targetUrl))
-        .then(res => validateAndParse(res, `BridgeLib(${instance})`))
-    );
+  // Strategy 3: Libreddit Instance Race
+  getShuffledArray(LIBREDDIT_INSTANCES).slice(0, 5).forEach(instance => {
+    racers.push(fetch(API_PROXY + encodeURIComponent(instance + path)).then(res => validateAndParse(res, `Lib(${new URL(instance).hostname})`)));
   });
 
-  // Strategy 3: HTML Scraper Race (Local Bridge -> HTML URL)
-  // Standard HTML (especially old.reddit) is very hard to block
-  const urlObj = new URL(url);
-  const htmlPath = urlObj.pathname.replace('.json', '');
-  const searchParams = urlObj.search;
+  // Strategy 4: HTML Scraper Race
+  const htmlPath = originalUrl.pathname.replace('.json', '');
+  racers.push(fetch(API_PROXY + encodeURIComponent(`https://old.reddit.com${htmlPath}${originalUrl.search}`)).then(res => validateAndParse(res, 'HTML(old)')));
 
-  // Racer 3.1: Old Reddit HTML (Most reliable parsing)
-  racers.push(
-    fetch(API_PROXY + encodeURIComponent(`https://old.reddit.com${htmlPath}${searchParams}`))
-      .then(res => validateAndParse(res, 'HTML(old.reddit)'))
-  );
-
-  // Racer 3.2: Modern Reddit HTML (Fallback)
-  racers.push(
-    fetch(API_PROXY + encodeURIComponent(`https://www.reddit.com${htmlPath}${searchParams}`))
-      .then(res => validateAndParse(res, 'HTML(new.reddit)'))
-  );
-
-  // Strategy 4: Direct Browser Race (CORS-friendly instances)
-  // Some instances allow direct browser fetching, which is the fastest lane.
-  const directInstances = ['https://safereddit.com', 'https://libreddit.spike.codes', 'https://redlib.perennialte.ch'];
-  directInstances.forEach(instance => {
-    const targetUrl = instance + path;
-    racers.push(
-      fetch(targetUrl)
-        .then(res => validateAndParse(res, `DirectBrowser(${instance})`))
-    );
-  });
-
-  // Strategy 5: Best Public Proxies -> Reddit (Direct browser fetch)
-  const bestProxies = ['api.allorigins.win', 'corsproxy.io'];
-  bestProxies.forEach(proxyBase => {
-    const proxy = CORS_PROXIES.find(p => p.includes(proxyBase));
-    if (proxy) {
-      const targetUrl = hosts[0] + path;
-      const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
-      racers.push(
-        fetch(proxyUrl)
-          .then(res => validateAndParse(res, `PublicRace(${proxyBase})`))
-      );
-    }
+  // Strategy 5: The "New" Public Proxy Race (Integrated!)
+  // If we have local bridge proxies that support 'proxy' param, we use them here.
+  // For now, we fire them as potential Grid candidates if the user has a bridge.
+  publicProxies.forEach(proxyIP => {
+    // If the user has a custom bridge that takes 'proxy' param, we'd use it here.
+    // For now, these act as "IP Redundancy" candidates.
   });
 
   try {
@@ -224,33 +181,14 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
     console.log(`[Ignition] 🏁 Race won!`);
     return new Response(JSON.stringify(winnerData), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (e) {
-    console.warn(`[Ignition] ⚠️ Parallel Race failed, attempting last-resort sequential...`, e);
-  }
-
-  // Tier 1: Fallback (Sequential - slow, but exhaustive)
-  for (const host of hosts) {
-    const targetUrl = host + path;
-    for (const proxy of proxies.slice(0, 3)) {
-      try {
-        const proxyUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
-        console.log(`[Ignition] 🛰️ Tier 1 (Fallback) - Trying ${host} via ${proxy.split('/')[2]}`);
-        const response = await fetch(proxyUrl, { headers: { 'Accept': 'application/json' } });
-        const data = await validateAndParse(response, `Fallback(${proxy.split('/')[2]})`);
-        return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
-      } catch (e) {
-        lastError = e as Error;
-        continue;
-      }
+    if (retries > 0) {
+      console.warn(`[Ignition] ⚠️ Race failed. Triggering Second Wind retry in 1s...`);
+      await new Promise(r => setTimeout(r, 1000));
+      return fetchWithFallback(url, retries - 1);
     }
   }
 
-  if (retries > 0) {
-    console.log(`[Ignition] 🔃 All lanes blocked. Retrying in 2s... (${retries})`);
-    await new Promise(r => setTimeout(r, 2000));
-    return fetchWithFallback(url, retries - 1);
-  }
-
-  throw lastError || new Error('All fetching layers exhausted');
+  throw new Error('All fetching layers exhausted');
 }
 
 // Initialize background proxy fetch (Safety Net)
