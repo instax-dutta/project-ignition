@@ -55,7 +55,8 @@ async function validateAndParse(response: Response, source: string): Promise<any
 
   if (isHtml) {
     // Check if the HTML is actually useful or just a 'Refused'/'Blocked' page
-    if (text.includes("Access Denied") || text.includes("blocked by your IP") || text.length < 500) {
+    const blockKeywords = ["Access Denied", "blocked by your IP", "too many requests", "verify you are a human"];
+    if (blockKeywords.some(kw => text.includes(kw)) || text.length < 500) {
       throw new Error(`${source}: Blocked HTML / Empty Response`);
     }
 
@@ -75,7 +76,6 @@ async function validateAndParse(response: Response, source: string): Promise<any
     throw new Error(`${source}: Invalid JSON structure`);
   }
 }
-
 
 function extractDataFromHtml(html: string, source: string): any {
   try {
@@ -121,7 +121,6 @@ function extractDataFromHtml(html: string, source: string): any {
 
     // Strategy 3: Libreddit/Redlib Scraper (Safereddit, etc.)
     if (html.includes('class="post"') || html.includes('class="post-title"')) {
-      console.log(`[Ignition] 🧪 Attempting Libreddit Scraper on ${source}...`);
       const threads: any[] = [];
       // Match post IDs and titles from Libreddit/Redlib
       const postMatches = html.matchAll(/<a[^>]*href="\/r\/[^/]+\/comments\/([^/"]+)[^>]*class="post-title"[^>]*>([\s\S]+?)<\/a>/g);
@@ -131,18 +130,21 @@ function extractDataFromHtml(html: string, source: string): any {
           kind: 't3',
           data: {
             id: match[1],
-            title: match[2].trim(),
-            subreddit: source, // Fallback
+            title: match[2].split('<').shift()?.trim() || 'Untitled',
+            subreddit: 'scraped',
             author: 'anonymous',
             score: 0,
-            permalink: `/r/${source}/comments/${match[1]}`,
+            permalink: `/r/scraped/comments/${match[1]}`,
             url: '',
             num_comments: 0,
             created_utc: Date.now() / 1000,
           }
         });
       }
-      if (threads.length > 0) return { data: { children: threads } };
+      if (threads.length > 0) {
+        console.log(`[Ignition] 🧪 Scraped ${threads.length} threads via Lib Scraper`);
+        return { data: { children: threads } };
+      }
     }
 
     throw new Error('No parsable pattern found in HTML');
@@ -157,47 +159,62 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   const path = originalUrl.pathname + originalUrl.search;
 
   const hosts = getShuffledArray(ALTERNATIVE_HOSTS);
-  const publicProxies = getShuffledArray(getProxyPool()).slice(0, 10); // Use from our new registry!
+  const publicProxies = getShuffledArray(getProxyPool()).slice(0, 15);
 
-  console.log(`[Ignition] 🏎️ Entering Parallel Race (${retries} retries left): ${path}`);
+  console.log(`[Ignition] 🏎️ Race Started (${retries} retries left): ${path}`);
 
   const racers: Promise<any>[] = [];
+
+  const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms))
+    ]);
+  };
 
   // Strategy 0: Custom Home Hub
   const customHub = typeof window !== 'undefined' ? localStorage.getItem('IGNITION_HUB') : null;
   if (customHub) {
     const hubUrl = customHub.endsWith('/') ? customHub : customHub + '/';
     racers.push(
-      fetch(hubUrl + hosts[0] + path, { headers: { 'X-Requested-With': 'Ignition-App' } })
-        .then(res => validateAndParse(res, 'HomeHub'))
+      withTimeout(fetch(hubUrl + hosts[0] + path, { headers: { 'X-Requested-With': 'Ignition-App' } })
+        .then(res => validateAndParse(res, 'HomeHub')), 5000, 'HomeHub')
     );
   }
 
   // Strategy 1: Grid Hubs
-  const communityHubs = getShuffledArray(COMMUNITY_HUBS) as string[];
-  communityHubs.forEach(hubUrl => {
+  (getShuffledArray(COMMUNITY_HUBS) as string[]).forEach(hubUrl => {
     const cleanHub = hubUrl.endsWith('/') ? hubUrl : hubUrl + '/';
     racers.push(
-      fetch(cleanHub + hosts[0] + path, { headers: { 'X-Requested-With': 'Ignition-App' } })
-        .then(res => validateAndParse(res, `Grid(${new URL(hubUrl).hostname})`))
+      withTimeout(fetch(cleanHub + hosts[0] + path, { headers: { 'X-Requested-With': 'Ignition-App' } })
+        .then(res => validateAndParse(res, `Grid(${new URL(hubUrl).hostname})`)), 6000, `Grid(${hubUrl})`)
     );
   });
 
   // Strategy 2: Netlify Bridge Race
   hosts.forEach(host => {
-    racers.push(fetch(API_PROXY + encodeURIComponent(host + path)).then(res => validateAndParse(res, `Bridge(${host})`)));
+    racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(host + path)).then(res => validateAndParse(res, `Bridge(${host})`)), 5000, `Bridge(${host})`));
   });
 
-  // Strategy 3: Libreddit Instance Race
-  getShuffledArray(LIBREDDIT_INSTANCES).slice(0, 5).forEach(instance => {
-    racers.push(fetch(API_PROXY + encodeURIComponent(instance + path)).then(res => validateAndParse(res, `Lib(${new URL(instance).hostname})`)));
+  // Strategy 3: Libreddit Instance Race (Direct & Proxied)
+  (getShuffledArray(LIBREDDIT_INSTANCES) as string[]).slice(0, 8).forEach(instance => {
+    // Try both direct and via bridge – some instances have CORS open
+    racers.push(withTimeout(fetch(instance + path).then(res => validateAndParse(res, `LibDirect(${new URL(instance).hostname})`)), 4000, `LibDirect(${instance})`));
+    racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(instance + path)).then(res => validateAndParse(res, `LibBridge(${new URL(instance).hostname})`)), 7000, `LibBridge(${instance})`));
   });
 
-  // Strategy 4: HTML Scraper Race
+  // Strategy 4: External CORS Gateways (Divergent IPs to escape Netlify range blocking)
+  (getShuffledArray(CORS_PROXIES) as string[]).slice(0, 3).forEach(proxy => {
+    const targetUrl = hosts[0] + path;
+    const fullUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
+    racers.push(withTimeout(fetch(fullUrl).then(res => validateAndParse(res, `Gateway(${new URL(proxy).hostname})`)), 8000, `Gateway(${proxy})`));
+  });
+
+  // Strategy 5: HTML Scraper Race
   const htmlPath = originalUrl.pathname.replace('.json', '');
-  racers.push(fetch(API_PROXY + encodeURIComponent(`https://old.reddit.com${htmlPath}${originalUrl.search}`)).then(res => validateAndParse(res, 'HTML(old)')));
+  racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(`https://old.reddit.com${htmlPath}${originalUrl.search}`)).then(res => validateAndParse(res, 'HTML(old)')), 6000, 'HTML(old)'));
 
-  // Strategy 5: The "New" Public Proxy Race (Integrated!)
+  // Strategy 6: The "New" Public Proxy Race (Integrated!)
   // If we have local bridge proxies that support 'proxy' param, we use them here.
   // For now, we fire them as potential Grid candidates if the user has a bridge.
   publicProxies.forEach(proxyIP => {
@@ -211,8 +228,8 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
     return new Response(JSON.stringify(winnerData), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (e) {
     if (retries > 0) {
-      console.warn(`[Ignition] ⚠️ Race failed. Triggering Second Wind retry in 1s...`);
-      await new Promise(r => setTimeout(r, 1000));
+      console.warn(`[Ignition] ⚠️ Race failed. retrying in 1.5s...`);
+      await new Promise(r => setTimeout(r, 1500));
       return fetchWithFallback(url, retries - 1);
     }
   }
