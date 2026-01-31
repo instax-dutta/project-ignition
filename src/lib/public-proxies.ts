@@ -11,8 +11,12 @@ export function getProxyPool(): string[] {
 }
 
 const PROXY_SOURCES = [
-    'https://raw.githubusercontent.com/Bes-js/public-proxy-list/main/proxy-list.txt'
+    'https://raw.githubusercontent.com/Bes-js/public-proxy-list/main/proxies.txt',
+    'https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt',
+    'https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt',
+    'https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt'
 ];
+
 
 /**
  * Fetches public proxies from community lists.

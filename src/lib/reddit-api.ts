@@ -35,7 +35,8 @@ const LIBREDDIT_INSTANCES = [
 const COMMUNITY_HUBS = (import.meta.env.VITE_HIDDEN_HUBS || '')
   .split(',')
   .filter(Boolean)
-  .map((url: string) => url.trim());
+  .map((url: string) => url.trim())
+  .filter((url: string) => !url.includes('sdad.pro')); // Filter out the user's decommissioned server
 
 const API_PROXY = '/api/proxy?url=';
 
@@ -75,6 +76,7 @@ async function validateAndParse(response: Response, source: string): Promise<any
   }
 }
 
+
 function extractDataFromHtml(html: string, source: string): any {
   try {
     // Strategy 1: Look for window.___r (Modern Reddit)
@@ -86,7 +88,7 @@ function extractDataFromHtml(html: string, source: string): any {
       }
     }
 
-    // Strategy 2: Old Reddit Search Scraper (The most reliable for search)
+    // Strategy 2: Old Reddit Search Scraper
     if (html.includes('class="thing"')) {
       const threads: any[] = [];
       const thingRegex = /<div[^>]*class="[^"]*thing[^"]*"[^>]*data-fullname="([^"]+)"[^>]*data-author="([^"]*)"[^>]*data-subreddit="([^"]*)"[^>]*>([\s\S]+?)<\/div><div class="clearleft"><\/div>/g;
@@ -109,11 +111,37 @@ function extractDataFromHtml(html: string, source: string): any {
             permalink: permalinkMatch?.[1],
             url: content.match(/data-url="([^"]+)"/)?.[1] || '',
             num_comments: parseInt(content.match(/data-comments-count="(\d+)"/)?.[1] || '0'),
-            created_utc: Date.now() / 1000, // Fallback
+            created_utc: Date.now() / 1000,
           }
         });
       }
 
+      if (threads.length > 0) return { data: { children: threads } };
+    }
+
+    // Strategy 3: Libreddit/Redlib Scraper (Safereddit, etc.)
+    if (html.includes('class="post"') || html.includes('class="post-title"')) {
+      console.log(`[Ignition] 🧪 Attempting Libreddit Scraper on ${source}...`);
+      const threads: any[] = [];
+      // Match post IDs and titles from Libreddit/Redlib
+      const postMatches = html.matchAll(/<a[^>]*href="\/r\/[^/]+\/comments\/([^/"]+)[^>]*class="post-title"[^>]*>([\s\S]+?)<\/a>/g);
+
+      for (const match of postMatches) {
+        threads.push({
+          kind: 't3',
+          data: {
+            id: match[1],
+            title: match[2].trim(),
+            subreddit: source, // Fallback
+            author: 'anonymous',
+            score: 0,
+            permalink: `/r/${source}/comments/${match[1]}`,
+            url: '',
+            num_comments: 0,
+            created_utc: Date.now() / 1000,
+          }
+        });
+      }
       if (threads.length > 0) return { data: { children: threads } };
     }
 
@@ -122,6 +150,7 @@ function extractDataFromHtml(html: string, source: string): any {
     throw new Error(`${source}: Extraction failed - ${(e as Error).message}`);
   }
 }
+
 
 async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   const originalUrl = new URL(url);
