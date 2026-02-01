@@ -5,18 +5,27 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Download, 
-  FileText, 
-  Gauge, 
-  Zap, 
-  Target, 
+import {
+  Download,
+  FileText,
+  Gauge,
+  Zap,
+  Target,
   Crown,
   TrendingDown,
   CheckCircle,
-  Loader2
+  Loader2,
+  FileCode
 } from 'lucide-react';
-import { generateTOON, calculateTokenSavings, downloadTOON, generateFilename } from '@/lib/toon-generator';
+import {
+  generateTOON,
+  calculateTokenSavings,
+  downloadTOON,
+  generateFilename,
+  generateMarkdown,
+  downloadMarkdown,
+  generateMarkdownFilename
+} from '@/lib/toon-generator';
 
 interface ExportPanelProps {
   threads: RedditThread[];
@@ -29,6 +38,7 @@ export function ExportPanel({ threads, query, onSuccess, onClose }: ExportPanelP
   const [filename, setFilename] = useState(generateFilename(query));
   const [level, setLevel] = useState<OptimizationLevel>('balanced');
   const [isExporting, setIsExporting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'toon' | 'markdown' | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
 
   const optimizationOptions = [
@@ -63,20 +73,47 @@ export function ExportPanel({ threads, query, onSuccess, onClose }: ExportPanelP
 
   const handleExport = async () => {
     setIsExporting(true);
-    
+    setExportingFormat('toon');
+
     try {
       // Simulate processing time for UX
       await new Promise((r) => setTimeout(r, 500));
-      
+
       const content = generateTOON(threads, query, { level });
       const savings = calculateTokenSavings(threads, content);
-      
+
       downloadTOON(content, filename);
       onSuccess(savings);
     } catch (error) {
       console.error('Export failed:', error);
     } finally {
       setIsExporting(false);
+      setExportingFormat(null);
+    }
+  };
+
+  const handleMarkdownExport = async () => {
+    setIsExporting(true);
+    setExportingFormat('markdown');
+
+    try {
+      // Simulate processing time for UX
+      await new Promise((r) => setTimeout(r, 500));
+
+      const content = generateMarkdown(threads, query, { level });
+      const mdFilename = generateMarkdownFilename(query);
+
+      downloadMarkdown(content, mdFilename);
+
+      // Calculate savings for TOON format for comparison
+      const toonContent = generateTOON(threads, query, { level });
+      const savings = calculateTokenSavings(threads, toonContent);
+      onSuccess(savings);
+    } catch (error) {
+      console.error('Markdown export failed:', error);
+    } finally {
+      setIsExporting(false);
+      setExportingFormat(null);
     }
   };
 
@@ -110,15 +147,13 @@ export function ExportPanel({ threads, query, onSuccess, onClose }: ExportPanelP
               <button
                 key={option.value}
                 onClick={() => setLevel(option.value)}
-                className={`relative flex items-start gap-3 p-4 rounded-lg border transition-all duration-200 text-left ${
-                  level === option.value
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border/50 bg-secondary/30 hover:bg-secondary/50'
-                }`}
+                className={`relative flex items-start gap-3 p-4 rounded-lg border transition-all duration-200 text-left ${level === option.value
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border/50 bg-secondary/30 hover:bg-secondary/50'
+                  }`}
               >
-                <option.icon className={`h-5 w-5 mt-0.5 ${
-                  level === option.value ? 'text-primary' : 'text-muted-foreground'
-                }`} />
+                <option.icon className={`h-5 w-5 mt-0.5 ${level === option.value ? 'text-primary' : 'text-muted-foreground'
+                  }`} />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{option.label}</span>
@@ -192,26 +227,47 @@ export function ExportPanel({ threads, query, onSuccess, onClose }: ExportPanelP
           </TabsContent>
         </Tabs>
 
-        {/* Export Button */}
-        <Button
-          variant="gold"
-          size="xl"
-          onClick={handleExport}
-          disabled={isExporting || threads.length === 0}
-          className="w-full"
-        >
-          {isExporting ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Generating TOON file...
-            </>
-          ) : (
-            <>
-              <Download className="h-5 w-5" />
-              Export {threads.length} Thread{threads.length !== 1 ? 's' : ''} as TOON
-            </>
-          )}
-        </Button>
+        {/* Export Buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            variant="gold"
+            size="lg"
+            onClick={handleExport}
+            disabled={isExporting || threads.length === 0}
+            className="w-full"
+          >
+            {isExporting && exportingFormat === 'toon' ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" />
+                TOON Format
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handleMarkdownExport}
+            disabled={isExporting || threads.length === 0}
+            className="w-full border-primary/50 hover:bg-primary/10"
+          >
+            {isExporting && exportingFormat === 'markdown' ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <FileCode className="h-4 w-4" />
+                Markdown
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
