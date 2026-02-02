@@ -43,6 +43,32 @@ Ignition is built with a focus on:
 - **Resilience**: The 'Unbreakable Fetch Engine' is a core piece of tech.
 - **Aesthetics**: Vercel-inspired, high-end UI/UX.
 
+## 🔧 Advanced: Contributing Custom Proxy Nodes (Optional)
+
+**Note**: This is for advanced users only. Ignition works perfectly without custom proxies using the built-in public proxy pool and Reddit's public API.
+
+If you want to contribute a custom proxy node to improve resilience:
+
+### Option 1: Custom Hub (localStorage)
+1. Run a CORS proxy on your server/RPi:
+   ```bash
+   export PORT=9999
+   npx cors-anywhere
+   ```
+2. Expose it via Cloudflare Tunnel or DDNS
+3. In Ignition console (F12):
+   ```javascript
+   localStorage.setItem('IGNITION_HUB', 'https://your-proxy-url.com');
+   ```
+
+### Option 2: Environment Variable (Deployment)
+Add your proxy URL to `VITE_HIDDEN_HUBS` environment variable (comma-separated for multiple):
+```
+VITE_HIDDEN_HUBS=https://proxy1.example.com,https://proxy2.example.com
+```
+
+**Privacy**: Custom hubs are used only by your instance unless you explicitly share them.
+
 ---
 
 **Thank you for your contribution!** 🙌

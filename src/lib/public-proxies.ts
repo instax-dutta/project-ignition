@@ -1,7 +1,9 @@
 
-
+import { filterHealthyProxies } from './proxy-health-checker';
 
 let proxyPool: string[] = [];
+let lastHealthCheck: number = 0;
+const HEALTH_CHECK_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
 /**
  * Returns the currently discovered public proxies.
@@ -20,10 +22,15 @@ const PROXY_SOURCES = [
 
 /**
  * Fetches public proxies from community lists.
- * Note: Most of these are raw HTTP/SOCKS proxies and require a CORS gateway to be used in a browser.
- * This fetcher is primarily for "Safety" redundancy - gathering potential IP candidates.
+ * Optionally validates proxies with health checks.
+ * 
+ * @param validateProxies - If true, runs health checks on fetched proxies (slower but higher quality)
+ * @param onProgress - Optional callback for health check progress
  */
-export async function fetchPublicProxies(): Promise<string[]> {
+export async function fetchPublicProxies(
+    validateProxies: boolean = false,
+    onProgress?: (tested: number, total: number, healthy: number) => void
+): Promise<string[]> {
     const allProxies: string[] = [];
 
     console.log('[Ignition] 🛡️ UPDATING PUBLIC PROXY DEFENSE LIST...');
@@ -48,6 +55,29 @@ export async function fetchPublicProxies(): Promise<string[]> {
 
     // Deduplicate
     const unique = [...new Set(allProxies)];
+    console.log(`[Ignition] 🛡️ Total Public Proxies Fetched: ${unique.length}`);
+
+    // Optional health check validation
+    if (validateProxies && unique.length > 0) {
+        const now = Date.now();
+
+        // Skip health check if we did one recently
+        if (now - lastHealthCheck < HEALTH_CHECK_CACHE_DURATION && proxyPool.length > 0) {
+            console.log('[Ignition] 🏥 Using cached healthy proxies (recent health check)');
+            return proxyPool;
+        }
+
+        console.log('[Ignition] 🏥 Running health checks on proxies (this may take a minute)...');
+        const healthyProxies = await filterHealthyProxies(unique, '/api/proxy', onProgress);
+
+        proxyPool = healthyProxies;
+        lastHealthCheck = now;
+
+        console.log(`[Ignition] ✅ Healthy Proxies Ready: ${healthyProxies.length}`);
+        return healthyProxies;
+    }
+
+    // No validation - use all proxies
     proxyPool = unique;
     console.log(`[Ignition] 🛡️ Total Public Proxies in Reserve: ${unique.length}`);
     return unique;

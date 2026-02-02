@@ -61,18 +61,6 @@ npm run dev
 
 ---
 
-### 🌐 IGNITION GRID (Community Proxies)
-To make Ignition robust for everyone, we maintain a list of community-hosted residential proxies.
-**Your hub is already live!** We support adding any number of hidden hubs via environment variables.
-
-
-**To contribute another node:**
-1. Run `npx cors-anywhere` on your RPi/Server (Port 9999 recommended).
-2. Expose it via Cloudflare Tunnel or DDNS.
-3. Submit a PR adding your URL to `src/lib/reddit-api.ts`.
-
-These community nodes are used by all users as a high-priority lane to bypass Reddit's blocks. High quality, non-commercial use only.
-
 ## 📦 Deployment (Netlify)
 
 Ignition is pre-configured for **one-click deployment on Netlify**.
@@ -86,59 +74,38 @@ Ignition is pre-configured for **one-click deployment on Netlify**.
 
 ---
 
----
-
-## 🏠 Residential Mode (RPi Hub)
-
-If Reddit aggressively blocks cloud IPs (Netlify/Vercel), you can activate **Residential Mode** by hosting a tiny proxy on your home network (e.g., Raspberry Pi).
-
-1.  **Run on RPi** (Port 9999):
-    ```bash
-    export PORT=9999
-    nohup npx cors-anywhere > proxy.log 2>&1 &
-    ```
-2.  **Expose**: Use Cloudflare Tunnel to point a public URL (e.g., `https://hub.yoursite.com`) to `localhost:9999`.
-3.  **Activate**:
-    Open Ignition console (F12) and run:
-    ```javascript
-    localStorage.setItem('IGNITION_HUB', 'https://hub.yoursite.com');
-    ```
-    To disable: `localStorage.removeItem('IGNITION_HUB')`.
-
-### 🌐 IGNITION GRID (Community Proxies)
-To make Ignition robust for everyone, we use a grid of community-hosted residential proxies.
-
-**To contribute a node:**
-1. Run `npx cors-anywhere` on your RPi/Server (Port 9999 recommended).
-2. Expose it via Cloudflare Tunnel or DDNS.
-3. Configure it as a `VITE_HIDDEN_HUBS` environment variable in your deployment (comma-separated).
-4. **Safety & Privacy**: We verify hubs via our Grid Protocol.
-
-### 🛡️ Privacy & Safety Resources
-Ignition monitors public proxy sources to maintain the health of the grid. Special thanks to these projects for their open datasets:
-- **[Bes-js/public-proxy-list](https://github.com/Bes-js/public-proxy-list)**: Continuous feed of public proxies.
-- **[chill117/proxy-lists](https://github.com/chill117/proxy-lists)**: Comprehensive proxy aggregation.
-
-
-This allows the community to share resources securely without exposing exact locations publicly.
-
 ## 🏗️ Architecture: How it works
 
 ### 1. Topic Mapping
 Ignition uses a weighted scoring algorithm (`findRelevantSubreddits`) to map your intent to the best communities.
 
 ### 2. Unbreakable Fetch Engine
-Ignition implements a four-tier defense strategy to bypass blocks and ensure content delivery:
-- **Tier 0**: **Dedicated Serverless Proxy Bridge** (Netlify Functions). Our own infrastructure with custom header rotation and edge caching.
-- **Tier 1**: Official Reddit host rotation (www, old, new) via public CORS proxies as fallback.
-- **Tier 2**: Dynamic failover to **Libreddit** and **Safereddit** instances.
-- **Tier 3**: Recursive deep distribution with exponential backoff.
+Ignition implements a multi-tier defense strategy to bypass blocks and ensure content delivery:
+- **Tier 0**: **Reddit Public API** - Direct access to Reddit's public JSON endpoints (no authentication required)
+- **Tier 1**: **Dedicated Serverless Proxy Bridge** (Netlify Functions) - Custom infrastructure with header rotation
+- **Tier 2**: **Public Proxy Pool** - Automatically validated proxies from community sources
+- **Tier 3**: **Libreddit/Redlib Instances** - Privacy-focused Reddit frontends as fallback
+- **Tier 4**: **CORS Proxies** - Public gateways for additional redundancy
 
 ### 3. TOON Format
 Content is transformed from messy JSON into a structured, token-efficient notation:
-- Strips redundant metadata.
-- Preserves author identity and thread depth.
-- Formats dates and scores for LLM reasoning.
+- Strips redundant metadata
+- Preserves author identity and thread depth
+- Formats dates and scores for LLM reasoning
+
+### 4. Proxy Health System
+Ignition automatically validates proxies before use to ensure high success rates:
+- Tests proxies against health check endpoints
+- Caches healthy proxies for 1 hour
+- Filters out dead, slow, or auth-required proxies
+
+---
+
+## 🛡️ Privacy & Safety Resources
+Ignition uses public proxy sources to maintain fetch resilience. Special thanks to:
+- **[Bes-js/public-proxy-list](https://github.com/Bes-js/public-proxy-list)**: Continuous feed of public proxies
+- **[TheSpeedX/SOCKS-List](https://github.com/TheSpeedX/SOCKS-List)**: SOCKS proxy aggregation
+- **[monosans/proxy-list](https://github.com/monosans/proxy-list)**: HTTP proxy collection
 
 ---
 

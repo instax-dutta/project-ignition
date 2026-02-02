@@ -42,7 +42,7 @@ const API_PROXY = '/api/proxy?url=';
 
 const getShuffledArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
 
-async function validateAndParse(response: Response, source: string): Promise<any> {
+async function validateAndParse(response: Response, source: string): Promise<unknown> {
   const contentType = response.headers.get("content-type");
   const isHtml = contentType?.includes("text/html");
 
@@ -70,27 +70,27 @@ async function validateAndParse(response: Response, source: string): Promise<any
     const data = JSON.parse(text);
     // Normalization: Libreddit/Redlib often have different top-level keys
     if (data && (data.data || Array.isArray(data))) return data;
-    if (data && data.posts) return { data: { children: data.posts.map((p: any) => ({ kind: 't3', data: p })) } };
+    if (data && data.posts) return { data: { children: data.posts.map((p: unknown) => ({ kind: 't3', data: p })) } };
     throw new Error('Invalid Reddit Schema');
   } catch (e) {
     throw new Error(`${source}: Invalid JSON structure`);
   }
 }
 
-function extractDataFromHtml(html: string, source: string): any {
+function extractDataFromHtml(html: string, source: string): unknown {
   try {
     // Strategy 1: Look for window.___r (Modern Reddit)
     const stateMatch = html.match(/window\.___r\s*=\s*({.+?});/);
     if (stateMatch) {
       const state = JSON.parse(stateMatch[1]);
       if (state.posts?.models) {
-        return { data: { children: Object.values(state.posts.models).map((p: any) => ({ kind: 't3', data: p })) } };
+        return { data: { children: Object.values(state.posts.models).map((p: unknown) => ({ kind: 't3', data: p })) } };
       }
     }
 
     // Strategy 2: Old Reddit Search Scraper
     if (html.includes('class="thing"')) {
-      const threads: any[] = [];
+      const threads: unknown[] = [];
       const thingRegex = /<div[^>]*class="[^"]*thing[^"]*"[^>]*data-fullname="([^"]+)"[^>]*data-author="([^"]*)"[^>]*data-subreddit="([^"]*)"[^>]*>([\s\S]+?)<\/div><div class="clearleft"><\/div>/g;
       let match;
 
@@ -121,7 +121,7 @@ function extractDataFromHtml(html: string, source: string): any {
 
     // Strategy 3: Libreddit/Redlib Scraper (Safereddit, etc.)
     if (html.includes('class="post"') || html.includes('class="post-title"')) {
-      const threads: any[] = [];
+      const threads: unknown[] = [];
       // Match post IDs and titles from Libreddit/Redlib
       const postMatches = html.matchAll(/<a[^>]*href="\/r\/[^/]+\/comments\/([^/"]+)[^>]*class="post-title"[^>]*>([\s\S]+?)<\/a>/g);
 
@@ -163,16 +163,33 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
 
   console.log(`[Ignition] 🏎️ Race Started (${retries} retries left): ${path}`);
 
-  const racers: Promise<any>[] = [];
+  const racers: Promise<unknown>[] = [];
 
-  const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
+  const withTimeout = (promise: Promise<unknown>, ms: number, label: string) => {
     return Promise.race([
       promise,
       new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms))
     ]);
   };
 
-  // Strategy 0: Custom Home Hub
+  // Strategy 0: Reddit Public API (No OAuth Required!)
+  // Reddit's public JSON endpoints work without authentication for read-only access
+  // This is the most reliable method and should be tried first
+  const publicRedditUrl = `https://www.reddit.com${path}`;
+  racers.push(
+    withTimeout(
+      fetch(publicRedditUrl, {
+        headers: {
+          'User-Agent': 'Ignition/1.0 (Reddit Context Extractor)',
+          'Accept': 'application/json'
+        }
+      }).then(res => validateAndParse(res, 'RedditPublicAPI')),
+      4000,
+      'RedditPublicAPI'
+    )
+  );
+
+  // Strategy 1: Custom Home Hub
   const customHub = typeof window !== 'undefined' ? localStorage.getItem('IGNITION_HUB') : null;
   if (customHub) {
     const hubUrl = customHub.endsWith('/') ? customHub : customHub + '/';
@@ -218,20 +235,28 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(`https://old.reddit.com${htmlPath}${originalUrl.search}`)).then(res => validateAndParse(res, 'HTML(old)')), 6000, 'HTML(old)'));
 
   // Strategy 6: The "Public Proxy Defense" Race (ACTIVE)
-  // We pick 10 random proxies from the 3000+ pool and relay them through the Netlify bridge
-  publicProxies.slice(0, 10).forEach(proxyIP => {
+  // We pick 5 random proxies from the pool and relay them through the Netlify bridge
+  // Filter out proxies that are likely to require auth (common patterns)
+  const filteredProxies = publicProxies.filter(p => {
+    // Skip proxies with common auth-required ports or patterns
+    const authPorts = [':6', ':5790', ':5600', ':6810', ':6703', ':6144']; // Common residential proxy ports
+    return !authPorts.some(port => p.includes(port));
+  });
+
+  filteredProxies.slice(0, 5).forEach(proxyIP => {
     const targetUrl = hosts[Math.floor(Math.random() * hosts.length)] + path;
     const proxiedBridgeUrl = `${API_PROXY}${encodeURIComponent(targetUrl)}&proxy=${encodeURIComponent(proxyIP)}`;
 
     racers.push(
       withTimeout(
         fetch(proxiedBridgeUrl)
-          .then(res => validateAndParse(res, `ShieldProxy(${proxyIP})`)),
-        12000, // Longer timeout for public proxies as they can be slow
+          .then(res => validateAndParse(res, `ShieldProxy(${proxyIP.substring(0, 20)}...)`)),
+        8000, // Reduced timeout - fail faster
         `ShieldProxy(${proxyIP})`
       )
     );
   });
+
 
 
   try {

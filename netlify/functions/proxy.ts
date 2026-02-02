@@ -1,6 +1,7 @@
 import { Context } from "@netlify/functions";
 import axios from "axios";
 import { HttpsProxyAgent } from "https-proxy-agent";
+import { SocksProxyAgent } from "socks-proxy-agent";
 
 export default async (request: Request, context: Context) => {
     const urlString = new URL(request.url).searchParams.get("url");
@@ -56,7 +57,7 @@ export default async (request: Request, context: Context) => {
 
         console.log(`[Proxy] Routing request to: ${urlString}${proxyUrl ? ` via ${proxyUrl}` : ""}`);
 
-        const axiosConfig: any = {
+        const axiosConfig: Record<string, unknown> = {
             method: "get",
             url: urlString,
             headers: {
@@ -65,16 +66,29 @@ export default async (request: Request, context: Context) => {
                 "Accept-Language": "en-US,en;q=0.9",
                 "Referer": "https://www.google.com/",
             },
-            timeout: 8000,
-            validateStatus: () => true, // Allow any status code
+            timeout: 5000, // Reduced from 8000ms - fail fast on dead proxies
+            validateStatus: () => true,
             responseType: 'text'
         };
 
         if (proxyUrl) {
-            // Support both http://IP:PORT and just IP:PORT
-            const cleanProxy = proxyUrl.includes("://") ? proxyUrl : `http://${proxyUrl}`;
-            axiosConfig.httpsAgent = new HttpsProxyAgent(cleanProxy);
-            axiosConfig.proxy = false; // Disable axios default proxy handling to use the agent
+            try {
+                // Support both http://IP:PORT and just IP:PORT
+                const cleanProxy = proxyUrl.includes("://") ? proxyUrl : `http://${proxyUrl}`;
+
+                // Choose agent based on proxy protocol
+                if (cleanProxy.startsWith("socks4://") || cleanProxy.startsWith("socks5://") || cleanProxy.startsWith("socks://")) {
+                    axiosConfig.httpsAgent = new SocksProxyAgent(cleanProxy);
+                    axiosConfig.httpAgent = new SocksProxyAgent(cleanProxy);
+                } else {
+                    axiosConfig.httpsAgent = new HttpsProxyAgent(cleanProxy);
+                    axiosConfig.httpAgent = new HttpsProxyAgent(cleanProxy);
+                }
+                axiosConfig.proxy = false; // Disable axios default proxy handling
+            } catch (proxyError) {
+                console.error(`[Proxy] Invalid proxy format: ${proxyUrl}`);
+                // Continue without proxy if parsing fails
+            }
         }
 
         const response = await axios(axiosConfig);
@@ -93,7 +107,7 @@ export default async (request: Request, context: Context) => {
                 "X-Ignite-Proxy": proxyUrl ? "true" : "false",
             },
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error(`[Proxy Error] ${urlString}:`, (error as Error).message);
         return new Response(JSON.stringify({
             error: "Fetch failed",
