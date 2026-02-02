@@ -197,16 +197,19 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   });
 
   // Strategy 3: Libreddit Instance Race (Direct & Proxied)
-  (getShuffledArray(LIBREDDIT_INSTANCES) as string[]).slice(0, 8).forEach(instance => {
-    // Try both direct and via bridge – some instances have CORS open
-    racers.push(withTimeout(fetch(instance + path).then(res => validateAndParse(res, `LibDirect(${new URL(instance).hostname})`)), 4000, `LibDirect(${instance})`));
+  (getShuffledArray(LIBREDDIT_INSTANCES) as string[]).slice(0, 5).forEach(instance => {
+    // Only attempt direct if it's not known to have CORS issues (most do, but safereddit sometimes works)
+    if (instance.includes('safereddit')) {
+      racers.push(withTimeout(fetch(instance + path).then(res => validateAndParse(res, `LibDirect(${new URL(instance).hostname})`)), 4000, `LibDirect(${instance})`));
+    }
     racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(instance + path)).then(res => validateAndParse(res, `LibBridge(${new URL(instance).hostname})`)), 7000, `LibBridge(${instance})`));
   });
 
-  // Strategy 4: External CORS Gateways (Divergent IPs to escape Netlify range blocking)
-  (getShuffledArray(CORS_PROXIES) as string[]).slice(0, 3).forEach(proxy => {
-    const targetUrl = hosts[0] + path;
-    const fullUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(targetUrl) : proxy + targetUrl;
+  // Strategy 4: External CORS Gateways
+  const gatewayTargets = [hosts[0], hosts[1], 'https://old.reddit.com'].filter(Boolean);
+  (getShuffledArray(CORS_PROXIES) as string[]).slice(0, 2).forEach(proxy => {
+    const target = gatewayTargets[Math.floor(Math.random() * gatewayTargets.length)];
+    const fullUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(target + path) : proxy + target + path;
     racers.push(withTimeout(fetch(fullUrl).then(res => validateAndParse(res, `Gateway(${new URL(proxy).hostname})`)), 8000, `Gateway(${proxy})`));
   });
 
@@ -214,13 +217,22 @@ async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
   const htmlPath = originalUrl.pathname.replace('.json', '');
   racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(`https://old.reddit.com${htmlPath}${originalUrl.search}`)).then(res => validateAndParse(res, 'HTML(old)')), 6000, 'HTML(old)'));
 
-  // Strategy 6: The "New" Public Proxy Race (Integrated!)
-  // If we have local bridge proxies that support 'proxy' param, we use them here.
-  // For now, we fire them as potential Grid candidates if the user has a bridge.
-  publicProxies.forEach(proxyIP => {
-    // If the user has a custom bridge that takes 'proxy' param, we'd use it here.
-    // For now, these act as "IP Redundancy" candidates.
+  // Strategy 6: The "Public Proxy Defense" Race (ACTIVE)
+  // We pick 10 random proxies from the 3000+ pool and relay them through the Netlify bridge
+  publicProxies.slice(0, 10).forEach(proxyIP => {
+    const targetUrl = hosts[Math.floor(Math.random() * hosts.length)] + path;
+    const proxiedBridgeUrl = `${API_PROXY}${encodeURIComponent(targetUrl)}&proxy=${encodeURIComponent(proxyIP)}`;
+
+    racers.push(
+      withTimeout(
+        fetch(proxiedBridgeUrl)
+          .then(res => validateAndParse(res, `ShieldProxy(${proxyIP})`)),
+        12000, // Longer timeout for public proxies as they can be slow
+        `ShieldProxy(${proxyIP})`
+      )
+    );
   });
+
 
   try {
     const winnerData = await Promise.any(racers);

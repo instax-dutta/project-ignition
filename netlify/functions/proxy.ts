@@ -1,7 +1,10 @@
 import { Context } from "@netlify/functions";
+import axios from "axios";
+import { HttpsProxyAgent } from "https-proxy-agent";
 
 export default async (request: Request, context: Context) => {
     const urlString = new URL(request.url).searchParams.get("url");
+    const proxyUrl = new URL(request.url).searchParams.get("proxy");
 
     if (!urlString) {
         return new Response(JSON.stringify({ error: "Missing 'url' parameter" }), {
@@ -51,31 +54,34 @@ export default async (request: Request, context: Context) => {
         ];
         const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
 
-        console.log(`[Proxy] Routing request to: ${urlString}`);
+        console.log(`[Proxy] Routing request to: ${urlString}${proxyUrl ? ` via ${proxyUrl}` : ""}`);
 
-        const response = await fetch(urlString, {
-            method: "GET",
+        const axiosConfig: any = {
+            method: "get",
+            url: urlString,
             headers: {
                 "User-Agent": randomUA,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
                 "Accept-Language": "en-US,en;q=0.9",
                 "Referer": "https://www.google.com/",
-                "Cache-Control": "max-age=0",
-                "Sec-Ch-Ua": '"Not A(Bread;Base";v="99", "Chrome";v="121", "Google Chrome";v="121"',
-                "Sec-Ch-Ua-Mobile": "?0",
-                "Sec-Ch-Ua-Platform": '"Windows"',
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "cross-site",
-                "Sec-Fetch-User": "?1",
-                "Upgrade-Insecure-Requests": "1"
             },
-        });
+            timeout: 8000,
+            validateStatus: () => true, // Allow any status code
+            responseType: 'text'
+        };
 
-        const data = await response.text();
-        const contentType = response.headers.get("content-type") || "text/html";
+        if (proxyUrl) {
+            // Support both http://IP:PORT and just IP:PORT
+            const cleanProxy = proxyUrl.includes("://") ? proxyUrl : `http://${proxyUrl}`;
+            axiosConfig.httpsAgent = new HttpsProxyAgent(cleanProxy);
+            axiosConfig.proxy = false; // Disable axios default proxy handling to use the agent
+        }
 
-        return new Response(data, {
+        const response = await axios(axiosConfig);
+
+        const contentType = response.headers["content-type"] || "text/html";
+
+        return new Response(response.data, {
             status: response.status,
             headers: {
                 "Content-Type": contentType,
@@ -84,16 +90,19 @@ export default async (request: Request, context: Context) => {
                 "Access-Control-Allow-Headers": "Content-Type",
                 "Cache-Control": "public, max-age=3600",
                 "X-Ignite-Target": url.hostname,
+                "X-Ignite-Proxy": proxyUrl ? "true" : "false",
             },
         });
     } catch (error) {
+        console.error(`[Proxy Error] ${urlString}:`, (error as Error).message);
         return new Response(JSON.stringify({
             error: "Fetch failed",
             message: (error as Error).message,
             ignite_status: "network_error"
         }), {
             status: 500,
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
     }
 };
+
