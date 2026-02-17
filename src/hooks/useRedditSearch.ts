@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RedditThread, SubredditMatch, TimeFilter, SortOption } from '@/types/reddit.types';
-import { findRelevantSubreddits } from '@/lib/subreddit-database';
+import { getEnhancedSubredditRecommendations } from '@/lib/subreddit-matcher';
 import { searchMultipleSubreddits, fetchThreadWithComments } from '@/lib/reddit-api';
 
 interface UseRedditSearchReturn {
@@ -46,7 +46,7 @@ export function useRedditSearch(): UseRedditSearchReturn {
     if (!query.trim()) return;
 
     // Find relevant subreddits - this will trigger the useQuery automatically
-    const matches = findRelevantSubreddits(query);
+    const matches = getEnhancedSubredditRecommendations(query);
     setSubreddits(matches);
   }, [query]);
 

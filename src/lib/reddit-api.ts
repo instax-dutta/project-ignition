@@ -365,12 +365,59 @@ export async function searchMultipleSubreddits(
     }
   }
 
-  // Convert to array and sort by relevance score (score * upvote ratio)
-  return Array.from(threadsMap.values()).sort((a, b) => {
-    const scoreA = a.score * a.upvoteRatio;
-    const scoreB = b.score * b.upvoteRatio;
-    return scoreB - scoreA;
+  // Filter out irrelevant threads and improve ranking
+  const normalizedQuery = query.toLowerCase().trim();
+  const queryTokens = normalizedQuery.split(/\s+/).filter(token => token.length > 2);
+  
+  return Array.from(threadsMap.values())
+    .filter(thread => {
+      // Filter out irrelevant threads
+      const threadText = `${thread.title.toLowerCase()} ${thread.selftext.toLowerCase()}`;
+      return queryTokens.some(token => threadText.includes(token));
+    })
+    .sort((a, b) => {
+      // Enhanced relevance scoring
+      const scoreA = calculateRelevanceScore(a, queryTokens);
+      const scoreB = calculateRelevanceScore(b, queryTokens);
+      return scoreB - scoreA;
+    });
+}
+
+function calculateRelevanceScore(thread: RedditThread, queryTokens: string[]): number {
+  let score = 0;
+  
+  // Base score: score * upvote ratio
+  score += thread.score * thread.upvoteRatio;
+  
+  // Title match bonus
+  const titleText = thread.title.toLowerCase();
+  queryTokens.forEach(token => {
+    if (titleText.includes(token)) {
+      score += 50; // Bonus for title match
+      if (titleText.startsWith(token)) {
+        score += 30; // Additional bonus if title starts with token
+      }
+    }
   });
+  
+  // Selftext match bonus
+  const selftext = thread.selftext.toLowerCase();
+  queryTokens.forEach(token => {
+    if (selftext.includes(token)) {
+      score += 25; // Bonus for selftext match
+    }
+  });
+  
+  // Comment count bonus
+  score += thread.numComments * 2;
+  
+  // Freshness bonus (newer threads get higher score)
+  const hoursOld = (Date.now() / 1000 - thread.createdUtc) / 3600;
+  if (hoursOld < 24) score += 100; // 24 hours old
+  else if (hoursOld < 72) score += 50; // 3 days old
+  else if (hoursOld < 168) score += 25; // 1 week old
+  
+  return score;
 }
 
 interface RedditResponse {

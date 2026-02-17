@@ -186,7 +186,7 @@ const Index = () => {
                 TOON Format — 50-70% Token Savings
               </div>
               <h1 className="text-4xl md:text-6xl font-heading font-bold leading-tight">
-                Ignition: <span className="text-gradient-gold">Ultimate Information Access</span>
+                Ignition: <span className="text-gradient-primary">Ultimate Information Access</span>
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
                 Ignition to Ultimate Information of Reddit access to LLMs through token optimised files (TOON format) through human not direct api endpoints for ai agents.
