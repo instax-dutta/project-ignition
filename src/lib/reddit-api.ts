@@ -145,9 +145,40 @@ async function fetchRedditJSON(redditPath: string): Promise<unknown> {
       } catch (e) {
         lastError = e as Error;
       }
+
+      // Strategy 3: Try Libreddit instances (alternative frontends - often less blocked)
+      const libredditInstances = [
+        'https://libreddit.spike.codes',
+        'https://safereddit.com',
+        'https://libreddit.northboot.xyz',
+        'https://libreddit.oxymat.com',
+        'https://libreddit.tinfoil-hat.net',
+        'https://libreddit.projectsegfau.lt',
+      ];
+      
+      for (const instance of libredditInstances) {
+        try {
+          const libredditUrl = `${API_PROXY}${encodeURIComponent(`${instance}${redditPath}`)}`;
+          const response = await fetchWithTimeout(libredditUrl, REQUEST_TIMEOUT_MS);
+
+          if (response.ok) {
+            const data = await response.json();
+            if (isValidRedditData(data)) {
+              console.log(`[Ignition] ✅ Success via ${instance} (attempt ${attempt + 1})`);
+              setCache(cacheKey, data);
+              return data;
+            }
+          }
+        } catch {
+          // Try next instance
+          continue;
+        }
+      }
     }
 
-    throw new Error(`All fetch attempts exhausted for ${redditPath}: ${lastError?.message}`);
+    const errorMsg = `All fetch attempts exhausted for ${redditPath}: ${lastError?.message}. ` +
+      `Reddit may be rate-limiting this IP. Try again in a few minutes or use a different network.`;
+    throw new Error(errorMsg);
   });
 }
 

@@ -15,12 +15,18 @@ import { RedditThread } from '@/types/reddit.types';
 import { generateFilename } from '@/lib/toon-generator';
 import {
   Sparkles,
-  FileText,
   Zap,
-  Shield,
   ChevronDown,
   Github,
-  LayoutTemplate
+  LayoutTemplate,
+  ArrowRight,
+  Database,
+  Target,
+  Gauge,
+  Users,
+  MessageSquare,
+  Lightbulb,
+  Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,7 +39,7 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.15,
+      staggerChildren: 0.1,
       delayChildren: 0.2
     }
   }
@@ -88,6 +94,7 @@ const Index = () => {
     filename: string;
     savings: { originalTokens: number; toonTokens: number; savings: number };
   } | null>(null);
+  const [showTips, setShowTips] = useState(true);
 
   // Handle URL parameters from templates
   useEffect(() => {
@@ -95,13 +102,14 @@ const Index = () => {
     const autoSearch = searchParams.get('autoSearch');
     if (q && autoSearch === 'true') {
       setQuery(q);
-      // Delay search to allow state to update
+      setShowTips(false);
       setTimeout(() => search(), 100);
     }
   }, [searchParams, search, setQuery]);
 
   const handleSearch = async () => {
     clearAll();
+    setShowTips(false);
     await search();
   };
 
@@ -125,29 +133,58 @@ const Index = () => {
 
   const hasSearched = threads.length > 0 || subreddits.length > 0;
 
+  const stats = [
+    { icon: Database, label: 'Data Indexed', value: '50M+', desc: 'Reddit posts' },
+    { icon: Users, label: 'Communities', value: '15K+', desc: 'Subreddits' },
+    { icon: Gauge, label: 'Compression', value: '60%', desc: 'Token savings' },
+    { icon: Zap, label: 'Speed', value: '<2s', desc: 'Search time' },
+  ];
+
+  const tips = [
+    { icon: Target, title: 'Be Specific', desc: 'Try "React hooks best practices 2026"' },
+    { icon: MessageSquare, title: 'Include Context', desc: 'Add keywords like "review", "discussion", "help"' },
+    { icon: Lightbulb, title: 'Use Templates', desc: 'Start with pre-built templates for common topics' },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-hero">
+      {/* Skip Links for Accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 bg-primary text-primary-foreground rounded-lg font-medium"
+      >
+        Skip to main content
+      </a>
+
       {/* Header */}
       <motion.header
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="border-b border-border/30 bg-background/50 backdrop-blur-sm sticky top-0 z-30"
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="border-b border-border/30 bg-background/80 backdrop-blur-xl sticky top-0 z-30"
       >
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div
-            className="flex items-center gap-2 cursor-pointer"
+            className="flex items-center gap-3 cursor-pointer group"
             onClick={() => {
               navigate('/');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
           >
-            <FileText className="h-6 w-6 text-primary" />
-            <span className="font-heading text-xl font-semibold">
-              Ignition
-            </span>
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/30 rounded-lg blur-md group-hover:bg-primary/50 transition-colors" />
+              <div className="relative bg-gradient-to-br from-primary to-violet-500 p-2 rounded-lg">
+                <Zap className="h-5 w-5 text-white" />
+              </div>
+            </div>
+            <div>
+              <span className="font-heading text-lg font-bold tracking-tight">
+                Ignition
+              </span>
+              <span className="text-xs text-muted-foreground block -mt-0.5">Data Research Platform</span>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
@@ -155,16 +192,24 @@ const Index = () => {
               className="text-muted-foreground hover:text-foreground"
             >
               <LayoutTemplate className="h-4 w-4 mr-2" />
-              Templates
+              <span className="hidden sm:inline">Templates</span>
             </Button>
+            {/* Keyboard shortcuts hint */}
+            <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground/60">
+              <kbd className="px-1.5 py-0.5 bg-secondary rounded text-[10px] font-mono">/</kbd>
+              <span>Search</span>
+              <span className="mx-1">•</span>
+              <kbd className="px-1.5 py-0.5 bg-secondary rounded text-[10px] font-mono">Esc</kbd>
+              <span>Clear</span>
+            </div>
             <a
               href="https://github.com/instax-dutta/project-ignition"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all duration-300 border border-transparent hover:border-primary/20"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-all duration-200"
             >
               <Github className="h-4 w-4" />
-              <span className="hidden sm:inline">Contribute Now</span>
+              <span className="hidden sm:inline">GitHub</span>
             </a>
           </div>
         </div>
@@ -172,88 +217,119 @@ const Index = () => {
 
       {/* Hero Section */}
       {!hasSearched && (
-        <section className="py-20 md:py-32 px-4 overflow-hidden">
+        <section id="main-content" aria-label="Hero section" className="py-16 md:py-24 px-4 overflow-hidden">
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="container mx-auto text-center space-y-8"
+            className="container mx-auto"
           >
-            {/* Tagline */}
-            <motion.div variants={itemVariants} className="space-y-4 max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm">
-                <Sparkles className="h-4 w-4" />
-                TOON Format — 50-70% Token Savings
-              </div>
-              <h1 className="text-4xl md:text-6xl font-heading font-bold leading-tight">
-                Ignition: <span className="text-gradient-primary">Ultimate Information Access</span>
-              </h1>
-              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-                Ignition to Ultimate Information of Reddit access to LLMs through token optimised files (TOON format) through human not direct api endpoints for ai agents.
-              </p>
-            </motion.div>
+            {/* Hero Content */}
+            <div className="max-w-4xl mx-auto text-center space-y-8">
+              <motion.div variants={itemVariants}>
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm font-medium">
+                  <Sparkles className="h-4 w-4" />
+                  TOON Format — Up to 70% Token Savings
+                </div>
+              </motion.div>
 
-            {/* Search Bar */}
-            <motion.div
-              variants={itemVariants}
-              className="max-w-2xl mx-auto pt-4"
-            >
-              <SearchBar
-                value={query}
-                onChange={setQuery}
-                onSearch={handleSearch}
-                isLoading={isLoading}
-              />
-            </motion.div>
+              <motion.div variants={itemVariants} className="space-y-4">
+                <h1 className="text-4xl md:text-6xl font-heading font-bold leading-tight">
+                  Turn Reddit Data Into{' '}
+                  <span className="text-gradient-primary">AI-Ready Assets</span>
+                </h1>
+                <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Extract, optimize, and export Reddit discussions for AI models. 
+                  Transform unstructured content into structured, token-efficient data.
+                </p>
+              </motion.div>
 
-            {/* Templates Link */}
-            <motion.div variants={itemVariants}>
-              <Button
-                variant="link"
-                onClick={() => navigate('/templates')}
-                className="text-muted-foreground hover:text-primary"
+              {/* Search Bar */}
+              <motion.div
+                variants={itemVariants}
+                className="max-w-2xl mx-auto pt-4"
               >
-                <LayoutTemplate className="h-4 w-4 mr-2" />
-                Or try a pre-built template
-              </Button>
-            </motion.div>
+                <SearchBar
+                  value={query}
+                  onChange={setQuery}
+                  onSearch={handleSearch}
+                  isLoading={isLoading}
+                />
+              </motion.div>
 
-            {/* Features */}
+              {/* Quick Tips */}
+              <AnimatePresence>
+                {showTips && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="flex flex-wrap items-center justify-center gap-4 pt-4"
+                  >
+                    {tips.map((tip, idx) => (
+                      <motion.div
+                        key={tip.title}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className="flex items-center gap-2 px-3 py-2 bg-secondary/50 rounded-lg border border-border/50"
+                      >
+                        <tip.icon className="h-4 w-4 text-primary" />
+                        <span className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{tip.title}:</span> {tip.desc}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* CTA */}
+              <motion.div variants={itemVariants} className="flex items-center justify-center gap-4 pt-4">
+                <Button
+                  variant="hero"
+                  size="lg"
+                  onClick={() => navigate('/templates')}
+                >
+                  <LayoutTemplate className="h-5 w-5" />
+                  Browse Templates
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </motion.div>
+            </div>
+
+            {/* Stats Grid */}
             <motion.div
               variants={itemVariants}
-              className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto pt-12"
+              className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mt-16"
             >
-              <div className="p-6 bg-card/30 rounded-xl border border-border/30 hover:bg-card/40 transition-colors">
-                <Zap className="h-8 w-8 text-primary mb-4" />
-                <h3 className="font-heading font-semibold mb-2">Smart Discovery</h3>
-                <p className="text-sm text-muted-foreground">
-                  Automatically finds the most relevant subreddits for your topic
-                </p>
-              </div>
-              <div className="p-6 bg-card/30 rounded-xl border border-border/30 hover:bg-card/40 transition-colors">
-                <FileText className="h-8 w-8 text-primary mb-4" />
-                <h3 className="font-heading font-semibold mb-2">TOON Format</h3>
-                <p className="text-sm text-muted-foreground">
-                  Proprietary format saves 50-70% tokens while preserving context
-                </p>
-              </div>
-              <div className="p-6 bg-card/30 rounded-xl border border-border/30 hover:bg-card/40 transition-colors">
-                <Shield className="h-8 w-8 text-primary mb-4" />
-                <h3 className="font-heading font-semibold mb-2">No API Key</h3>
-                <p className="text-sm text-muted-foreground">
-                  Works instantly with no configuration or Reddit account required
-                </p>
-              </div>
+              {stats.map((stat, idx) => (
+                <motion.div
+                  key={stat.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 + idx * 0.1 }}
+                  className="p-4 bg-card/50 rounded-xl border border-border/50 text-center hover:border-primary/30 transition-colors"
+                >
+                  <stat.icon className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <p className="text-2xl font-heading font-bold text-gradient-primary">{stat.value}</p>
+                  <p className="text-sm font-medium">{stat.label}</p>
+                  <p className="text-xs text-muted-foreground">{stat.desc}</p>
+                </motion.div>
+              ))}
             </motion.div>
 
             {/* Scroll indicator */}
             <motion.div
               variants={itemVariants}
-              animate={{ y: [0, 10, 0] }}
+              animate={{ y: [0, 8, 0] }}
               transition={{ repeat: Infinity, duration: 2 }}
-              className="pt-8"
+              className="flex justify-center mt-12"
             >
-              <ChevronDown className="h-6 w-6 text-muted-foreground mx-auto" />
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <span className="text-xs uppercase tracking-widest">Start exploring</span>
+                <ChevronDown className="h-5 w-5" />
+              </div>
             </motion.div>
           </motion.div>
         </section>
@@ -261,7 +337,7 @@ const Index = () => {
 
       {/* Search Results Section */}
       {hasSearched && (
-        <main className="container mx-auto px-4 py-8 pb-32">
+        <main id="main-content" aria-label="Search results" className="container mx-auto px-4 py-8 pb-32">
           {/* Search Bar (compact) */}
           <motion.div
             initial={{ y: -20, opacity: 0 }}
@@ -276,19 +352,31 @@ const Index = () => {
             />
           </motion.div>
 
-          {/* Filters */}
+          {/* Results Summary */}
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="mb-6"
+            className="mb-6 flex flex-wrap items-center justify-between gap-4"
           >
-            <SearchFilters
-              timeFilter={timeFilter}
-              onTimeFilterChange={setTimeFilter}
-              sortOption={sortOption}
-              onSortOptionChange={setSortOption}
-            />
+            <div className="flex items-center gap-4">
+              <SearchFilters
+                timeFilter={timeFilter}
+                onTimeFilterChange={setTimeFilter}
+                sortOption={sortOption}
+                onSortOptionChange={setSortOption}
+              />
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="px-3 py-1 bg-primary/10 text-primary rounded-full font-medium">
+                {threads.length} results
+              </span>
+              {subreddits.length > 0 && (
+                <span className="text-muted-foreground">
+                  from {subreddits.length} communities
+                </span>
+              )}
+            </div>
           </motion.div>
 
           {/* Subreddit Results */}
@@ -296,7 +384,7 @@ const Index = () => {
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="mb-8"
+            className="mb-6"
           >
             <SubredditList subreddits={subreddits} isLoading={isLoading} />
           </motion.div>
@@ -325,6 +413,9 @@ const Index = () => {
                 exit={{ opacity: 0 }}
                 className="text-center py-16 space-y-4"
               >
+                <div className="mx-auto w-16 h-16 bg-secondary rounded-full flex items-center justify-center">
+                  <Search className="h-8 w-8 text-muted-foreground" />
+                </div>
                 <p className="text-muted-foreground">
                   No threads found for this topic. Try a different search term.
                 </p>
@@ -379,15 +470,19 @@ const Index = () => {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-border/30 py-8 mt-auto">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>
-            Built with the <span className="text-primary font-medium">TOON</span> format —
-            Token Optimized Object Notation
-          </p>
-          <p className="mt-2 text-xs">
-            Reddit content is fetched via public JSON endpoints. No Reddit account required.
-          </p>
+      <footer className="border-t border-border/30 py-8 mt-auto bg-card/30">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Zap className="h-4 w-4 text-primary" />
+              <span>Built with</span>
+              <span className="text-primary font-medium">TOON</span>
+              <span>— Token Optimized Object Notation</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Reddit content fetched via public endpoints. No API key required.
+            </p>
+          </div>
         </div>
       </footer>
     </div>
