@@ -1,283 +1,176 @@
 import { RedditThread, RedditComment, TimeFilter } from '@/types/reddit.types';
-import { fetchPublicProxies, getProxyPool } from './public-proxies';
 
-
-const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?',
-  'https://thingproxy.freeboard.io/fetch/',
-  'https://api.codetabs.com/v1/proxy?quest=',
-  'https://cors-anywhere.herokuapp.com/',
-  'https://proxy.cors.sh/',
-  'https://yacdn.org/proxy/',
-];
-
-const ALTERNATIVE_HOSTS = [
-  'https://www.reddit.com',
-  'https://old.reddit.com',
-  'https://new.reddit.com',
-];
-
-const LIBREDDIT_INSTANCES = [
-  'https://libreddit.spike.codes',
-  'https://safereddit.com',
-  'https://libreddit.northboot.xyz',
-  'https://libreddit.oxymat.com',
-  'https://libreddit.tinfoil-hat.net',
-  'https://libreddit.projectsegfau.lt',
-  'https://redlib.ducks.party',
-  'https://redlib.va.vern.cc',
-  'https://redlib.perennialte.ch',
-  'https://redlib.kittywit.ch',
-  'https://redlib.nonbinary.social',
-];
-
-const COMMUNITY_HUBS = (import.meta.env.VITE_HIDDEN_HUBS || '')
-  .split(',')
-  .filter(Boolean)
-  .map((url: string) => url.trim())
-  .filter((url: string) => !url.includes('sdad.pro')); // Filter out the user's decommissioned server
+// ============================================
+// CONFIGURATION
+// ============================================
 
 const API_PROXY = '/api/proxy?url=';
+const REQUEST_TIMEOUT_MS = 8000;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1500;
 
-const getShuffledArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
+// ============================================
+// IN-MEMORY CACHE
+// ============================================
 
-async function validateAndParse(response: Response, source: string): Promise<unknown> {
-  const contentType = response.headers.get("content-type");
-  const isHtml = contentType?.includes("text/html");
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
 
-  // Strategy: Even if 403 Forbidden, Reddit often serves the HTML with embedded state!
-  if (!response.ok && !isHtml) {
-    throw new Error(`${source}: HTTP ${response.status}`);
+const responseCache = new Map<string, CacheEntry<unknown>>();
+
+function getCached<T>(key: string): T | null {
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    responseCache.delete(key);
+    return null;
   }
+  return entry.data as T;
+}
 
-  const text = await response.text();
-
-  if (isHtml) {
-    // Check if the HTML is actually useful or just a 'Refused'/'Blocked' page
-    const blockKeywords = ["Access Denied", "blocked by your IP", "too many requests", "verify you are a human"];
-    if (blockKeywords.some(kw => text.includes(kw)) || text.length < 500) {
-      throw new Error(`${source}: Blocked HTML / Empty Response`);
-    }
-
-    console.log(`[Ignition] 🔍 Attempting HTML extraction from ${source} (${response.status})...`);
-    return extractDataFromHtml(text, source);
-  }
-
-  if (!contentType?.includes("application/json")) throw new Error(`${source}: Not JSON/HTML (${contentType})`);
-
-  try {
-    const data = JSON.parse(text);
-    // Normalization: Libreddit/Redlib often have different top-level keys
-    if (data && (data.data || Array.isArray(data))) return data;
-    if (data && data.posts) return { data: { children: data.posts.map((p: unknown) => ({ kind: 't3', data: p })) } };
-    throw new Error('Invalid Reddit Schema');
-  } catch (e) {
-    throw new Error(`${source}: Invalid JSON structure`);
+function setCache<T>(key: string, data: T): void {
+  responseCache.set(key, { data, timestamp: Date.now() });
+  // Evict old entries if cache gets too large
+  if (responseCache.size > 100) {
+    const oldest = Array.from(responseCache.entries())
+      .sort(([, a], [, b]) => a.timestamp - b.timestamp)
+      .slice(0, 20);
+    oldest.forEach(([key]) => responseCache.delete(key));
   }
 }
 
-function extractDataFromHtml(html: string, source: string): unknown {
+// ============================================
+// REQUEST DEDUPLICATION
+// ============================================
+
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+async function deduplicatedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const existing = inflightRequests.get(key);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+
+  const promise = fetcher().finally(() => {
+    inflightRequests.delete(key);
+  });
+
+  inflightRequests.set(key, promise);
+  return promise;
+}
+
+// ============================================
+// CORE FETCH PIPELINE
+// ============================================
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    // Strategy 1: Look for window.___r (Modern Reddit)
-    const stateMatch = html.match(/window\.___r\s*=\s*({.+?});/);
-    if (stateMatch) {
-      const state = JSON.parse(stateMatch[1]);
-      if (state.posts?.models) {
-        return { data: { children: Object.values(state.posts.models).map((p: unknown) => ({ kind: 't3', data: p })) } };
-      }
-    }
-
-    // Strategy 2: Old Reddit Search Scraper
-    if (html.includes('class="thing"')) {
-      const threads: unknown[] = [];
-      const thingRegex = /<div[^>]*class="[^"]*thing[^"]*"[^>]*data-fullname="([^"]+)"[^>]*data-author="([^"]*)"[^>]*data-subreddit="([^"]*)"[^>]*>([\s\S]+?)<\/div><div class="clearleft"><\/div>/g;
-      let match;
-
-      while ((match = thingRegex.exec(html)) !== null) {
-        const [_, id, author, subreddit, content] = match;
-        const titleMatch = content.match(/<a[^>]*class="[^"]*title[^"]*"[^>]*>([\s\S]+?)<\/a>/);
-        const scoreMatch = content.match(/<div[^>]*class="score unvoted"[^>]*>([^<]+)<\/div>/);
-        const permalinkMatch = content.match(/data-permalink="([^"]+)"/);
-
-        threads.push({
-          kind: 't3',
-          data: {
-            id: id.split('_')[1],
-            title: titleMatch ? titleMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') : 'Untitled',
-            author: author,
-            subreddit: subreddit,
-            score: parseInt(scoreMatch?.[1] || '0'),
-            permalink: permalinkMatch?.[1],
-            url: content.match(/data-url="([^"]+)"/)?.[1] || '',
-            num_comments: parseInt(content.match(/data-comments-count="(\d+)"/)?.[1] || '0'),
-            created_utc: Date.now() / 1000,
-          }
-        });
-      }
-
-      if (threads.length > 0) return { data: { children: threads } };
-    }
-
-    // Strategy 3: Libreddit/Redlib Scraper (Safereddit, etc.)
-    if (html.includes('class="post"') || html.includes('class="post-title"')) {
-      const threads: unknown[] = [];
-      // Match post IDs and titles from Libreddit/Redlib
-      const postMatches = html.matchAll(/<a[^>]*href="\/r\/[^/]+\/comments\/([^/"]+)[^>]*class="post-title"[^>]*>([\s\S]+?)<\/a>/g);
-
-      for (const match of postMatches) {
-        threads.push({
-          kind: 't3',
-          data: {
-            id: match[1],
-            title: match[2].split('<').shift()?.trim() || 'Untitled',
-            subreddit: 'scraped',
-            author: 'anonymous',
-            score: 0,
-            permalink: `/r/scraped/comments/${match[1]}`,
-            url: '',
-            num_comments: 0,
-            created_utc: Date.now() / 1000,
-          }
-        });
-      }
-      if (threads.length > 0) {
-        console.log(`[Ignition] 🧪 Scraped ${threads.length} threads via Lib Scraper`);
-        return { data: { children: threads } };
-      }
-    }
-
-    throw new Error('No parsable pattern found in HTML');
-  } catch (e) {
-    throw new Error(`${source}: Extraction failed - ${(e as Error).message}`);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    return response;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
+async function fetchRedditJSON(redditPath: string): Promise<unknown> {
+  const cacheKey = `reddit:${redditPath}`;
+  const cached = getCached<unknown>(cacheKey);
+  if (cached) {
+    console.log(`[Ignition] 💾 Cache hit: ${redditPath}`);
+    return cached;
+  }
 
-async function fetchWithFallback(url: string, retries = 2): Promise<Response> {
-  const originalUrl = new URL(url);
-  const path = originalUrl.pathname + originalUrl.search;
+  return deduplicatedFetch(cacheKey, async () => {
+    let lastError: Error | null = null;
 
-  const hosts = getShuffledArray(ALTERNATIVE_HOSTS);
-  const publicProxies = getShuffledArray(getProxyPool()).slice(0, 15);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        const delay = RETRY_DELAY_MS * attempt;
+        console.log(`[Ignition] ⏳ Retry ${attempt}/${MAX_RETRIES} in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
 
-  console.log(`[Ignition] 🏎️ Race Started (${retries} retries left): ${path}`);
+      // Strategy 1: Netlify proxy (primary — guaranteed CORS-safe)
+      try {
+        const proxyUrl = `${API_PROXY}${encodeURIComponent(`https://www.reddit.com${redditPath}`)}`;
+        console.log(`[Ignition] 🔌 Proxy fetch: ${redditPath} (attempt ${attempt + 1})`);
+        const response = await fetchWithTimeout(proxyUrl, REQUEST_TIMEOUT_MS);
 
-  const racers: Promise<unknown>[] = [];
-
-  const withTimeout = (promise: Promise<unknown>, ms: number, label: string) => {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms))
-    ]);
-  };
-
-  // Strategy 0: Reddit Public API (No OAuth Required!)
-  // Reddit's public JSON endpoints work without authentication for read-only access
-  // This is the most reliable method and should be tried first
-  const publicRedditUrl = `https://www.reddit.com${path}`;
-  racers.push(
-    withTimeout(
-      fetch(publicRedditUrl, {
-        headers: {
-          'User-Agent': 'Ignition/1.0 (Reddit Context Extractor)',
-          'Accept': 'application/json'
+        if (response.ok) {
+          const data = await response.json();
+          if (isValidRedditData(data)) {
+            console.log(`[Ignition] ✅ Success via Proxy (attempt ${attempt + 1})`);
+            setCache(cacheKey, data);
+            return data;
+          }
         }
-      }).then(res => validateAndParse(res, 'RedditPublicAPI')),
-      4000,
-      'RedditPublicAPI'
-    )
-  );
 
-  // Strategy 1: Custom Home Hub
-  const customHub = typeof window !== 'undefined' ? localStorage.getItem('IGNITION_HUB') : null;
-  if (customHub) {
-    const hubUrl = customHub.endsWith('/') ? customHub : customHub + '/';
-    racers.push(
-      withTimeout(fetch(hubUrl + hosts[0] + path, { headers: { 'X-Requested-With': 'Ignition-App' } })
-        .then(res => validateAndParse(res, 'HomeHub')), 5000, 'HomeHub')
-    );
-  }
+        // Rate limited — worth retrying
+        if (response.status === 429) {
+          lastError = new Error(`Rate limited (429)`);
+          continue;
+        }
 
-  // Strategy 1: Grid Hubs
-  (getShuffledArray(COMMUNITY_HUBS) as string[]).forEach(hubUrl => {
-    const cleanHub = hubUrl.endsWith('/') ? hubUrl : hubUrl + '/';
-    racers.push(
-      withTimeout(fetch(cleanHub + hosts[0] + path, { headers: { 'X-Requested-With': 'Ignition-App' } })
-        .then(res => validateAndParse(res, `Grid(${new URL(hubUrl).hostname})`)), 6000, `Grid(${hubUrl})`)
-    );
-  });
+        lastError = new Error(`Proxy returned HTTP ${response.status}`);
+      } catch (e) {
+        lastError = e as Error;
+        console.warn(`[Ignition] ⚠️ Proxy attempt ${attempt + 1} failed:`, (e as Error).message);
+      }
 
-  // Strategy 2: Netlify Bridge Race
-  hosts.forEach(host => {
-    racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(host + path)).then(res => validateAndParse(res, `Bridge(${host})`)), 5000, `Bridge(${host})`));
-  });
+      // Strategy 2: Try old.reddit.com through proxy (different rate limit pool)
+      try {
+        const oldRedditUrl = `${API_PROXY}${encodeURIComponent(`https://old.reddit.com${redditPath}`)}`;
+        const response = await fetchWithTimeout(oldRedditUrl, REQUEST_TIMEOUT_MS);
 
-  // Strategy 3: Libreddit Instance Race (Direct & Proxied)
-  (getShuffledArray(LIBREDDIT_INSTANCES) as string[]).slice(0, 5).forEach(instance => {
-    // Only attempt direct if it's not known to have CORS issues (most do, but safereddit sometimes works)
-    if (instance.includes('safereddit')) {
-      racers.push(withTimeout(fetch(instance + path).then(res => validateAndParse(res, `LibDirect(${new URL(instance).hostname})`)), 4000, `LibDirect(${instance})`));
+        if (response.ok) {
+          const data = await response.json();
+          if (isValidRedditData(data)) {
+            console.log(`[Ignition] ✅ Success via old.reddit.com Proxy (attempt ${attempt + 1})`);
+            setCache(cacheKey, data);
+            return data;
+          }
+        }
+        lastError = new Error(`old.reddit proxy returned HTTP ${response.status}`);
+      } catch (e) {
+        lastError = e as Error;
+      }
     }
-    racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(instance + path)).then(res => validateAndParse(res, `LibBridge(${new URL(instance).hostname})`)), 7000, `LibBridge(${instance})`));
+
+    throw new Error(`All fetch attempts exhausted for ${redditPath}: ${lastError?.message}`);
   });
-
-  // Strategy 4: External CORS Gateways
-  const gatewayTargets = [hosts[0], hosts[1], 'https://old.reddit.com'].filter(Boolean);
-  (getShuffledArray(CORS_PROXIES) as string[]).slice(0, 2).forEach(proxy => {
-    const target = gatewayTargets[Math.floor(Math.random() * gatewayTargets.length)];
-    const fullUrl = proxy.endsWith('?') || proxy.endsWith('=') ? proxy + encodeURIComponent(target + path) : proxy + target + path;
-    racers.push(withTimeout(fetch(fullUrl).then(res => validateAndParse(res, `Gateway(${new URL(proxy).hostname})`)), 8000, `Gateway(${proxy})`));
-  });
-
-  // Strategy 5: HTML Scraper Race
-  const htmlPath = originalUrl.pathname.replace('.json', '');
-  racers.push(withTimeout(fetch(API_PROXY + encodeURIComponent(`https://old.reddit.com${htmlPath}${originalUrl.search}`)).then(res => validateAndParse(res, 'HTML(old)')), 6000, 'HTML(old)'));
-
-  // Strategy 6: The "Public Proxy Defense" Race (ACTIVE)
-  // We pick 5 random proxies from the pool and relay them through the Netlify bridge
-  // Filter out proxies that are likely to require auth (common patterns)
-  const filteredProxies = publicProxies.filter(p => {
-    // Skip proxies with common auth-required ports or patterns
-    const authPorts = [':6', ':5790', ':5600', ':6810', ':6703', ':6144']; // Common residential proxy ports
-    return !authPorts.some(port => p.includes(port));
-  });
-
-  filteredProxies.slice(0, 5).forEach(proxyIP => {
-    const targetUrl = hosts[Math.floor(Math.random() * hosts.length)] + path;
-    const proxiedBridgeUrl = `${API_PROXY}${encodeURIComponent(targetUrl)}&proxy=${encodeURIComponent(proxyIP)}`;
-
-    racers.push(
-      withTimeout(
-        fetch(proxiedBridgeUrl)
-          .then(res => validateAndParse(res, `ShieldProxy(${proxyIP.substring(0, 20)}...)`)),
-        8000, // Reduced timeout - fail faster
-        `ShieldProxy(${proxyIP})`
-      )
-    );
-  });
-
-
-
-  try {
-    const winnerData = await Promise.any(racers);
-    console.log(`[Ignition] 🏁 Race won!`);
-    return new Response(JSON.stringify(winnerData), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  } catch (e) {
-    if (retries > 0) {
-      console.warn(`[Ignition] ⚠️ Race failed. retrying in 1.5s...`);
-      await new Promise(r => setTimeout(r, 1500));
-      return fetchWithFallback(url, retries - 1);
-    }
-  }
-
-  throw new Error('All fetching layers exhausted');
 }
 
-// Initialize background proxy fetch (Safety Net)
-if (typeof window !== 'undefined') {
-  fetchPublicProxies().catch(e => console.error('[Ignition] Proxy fetch failed', e));
+function isValidRedditData(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false;
+
+  // Search results / listing
+  if ('data' in data && typeof (data as Record<string, unknown>).data === 'object') {
+    const listing = (data as Record<string, unknown>).data as Record<string, unknown>;
+    return Array.isArray(listing.children);
+  }
+
+  // Thread + comments (array of two listings)
+  if (Array.isArray(data) && data.length >= 2) {
+    return data[0]?.data?.children !== undefined;
+  }
+
+  return false;
 }
+
+// ============================================
+// PUBLIC API — Same signatures, clean internals
+// ============================================
 
 export async function searchSubreddit(
   subreddit: string,
@@ -286,16 +179,13 @@ export async function searchSubreddit(
   time: TimeFilter = 'week',
   limit: number = 25
 ): Promise<RedditThread[]> {
-  const url = `https://www.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(
-    query
-  )}&sort=${sort}&t=${time}&limit=${limit}&restrict_sr=1`;
+  const path = `/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&sort=${sort}&t=${time}&limit=${limit}&restrict_sr=1`;
 
   try {
-    const response = await fetchWithFallback(url);
-    const data = await response.json();
-    return parseThreads(data);
+    const data = await fetchRedditJSON(path);
+    return parseThreads(data as RedditResponse);
   } catch (error) {
-    console.error(`Error searching ${subreddit}:`, error);
+    console.error(`[Ignition] ❌ Search failed for r/${subreddit}:`, error);
     return [];
   }
 }
@@ -304,18 +194,19 @@ export async function fetchThreadWithComments(
   subreddit: string,
   threadId: string
 ): Promise<RedditThread | null> {
-  const url = `https://www.reddit.com/r/${subreddit}/comments/${threadId}.json?limit=100&depth=5`;
+  const path = `/r/${subreddit}/comments/${threadId}.json?limit=100&depth=5`;
 
   try {
-    const response = await fetchWithFallback(url);
-    const data = await response.json();
+    const data = (await fetchRedditJSON(path)) as unknown[];
 
     if (!Array.isArray(data) || data.length < 2) {
       return null;
     }
 
-    const threadData = data[0].data.children[0].data;
-    const commentsData = data[1].data.children;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const threadData = (data[0] as any).data.children[0].data;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const commentsData = (data[1] as any).data.children;
 
     return {
       id: threadData.id,
@@ -336,11 +227,10 @@ export async function fetchThreadWithComments(
       comments: parseComments(commentsData),
     };
   } catch (error) {
-    console.error(`Error fetching thread ${threadId}:`, error);
+    console.error(`[Ignition] ❌ Thread fetch failed for ${threadId}:`, error);
     return null;
   }
 }
-
 
 export async function searchMultipleSubreddits(
   subreddits: string[],
@@ -348,11 +238,10 @@ export async function searchMultipleSubreddits(
   sort: string = 'top',
   time: TimeFilter = 'week'
 ): Promise<RedditThread[]> {
-  // Use Promise.allSettled for graceful failure handling - faster than waiting for all to fail
   const promises = subreddits.map((sub) => searchSubreddit(sub, query, sort, time, 10));
   const results = await Promise.allSettled(promises);
 
-  // Flatten and dedupe by thread ID using a Map for O(1) lookups
+  // Flatten and dedupe by thread ID
   const threadsMap = new Map<string, RedditThread>();
 
   for (const result of results) {
@@ -365,58 +254,90 @@ export async function searchMultipleSubreddits(
     }
   }
 
-  // Filter out irrelevant threads and improve ranking
-  const normalizedQuery = query.toLowerCase().trim();
-  const queryTokens = normalizedQuery.split(/\s+/).filter(token => token.length > 2);
-  
+  // Filter and rank
+  const queryTokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 2);
+
   return Array.from(threadsMap.values())
     .filter(thread => {
-      // Filter out irrelevant threads
       const threadText = `${thread.title.toLowerCase()} ${thread.selftext.toLowerCase()}`;
       return queryTokens.some(token => threadText.includes(token));
     })
-    .sort((a, b) => {
-      // Enhanced relevance scoring
-      const scoreA = calculateRelevanceScore(a, queryTokens);
-      const scoreB = calculateRelevanceScore(b, queryTokens);
-      return scoreB - scoreA;
-    });
+    .sort((a, b) => calculateRelevanceScore(b, queryTokens) - calculateRelevanceScore(a, queryTokens));
 }
+
+// ============================================
+// SUBREDDIT SEARCH (for dynamic discovery)
+// ============================================
+
+export interface SubredditSearchResult {
+  name: string;
+  title: string;
+  subscribers: number;
+  description: string;
+  over18: boolean;
+}
+
+export async function searchSubreddits(query: string): Promise<SubredditSearchResult[]> {
+  const path = `/subreddits/search.json?q=${encodeURIComponent(query)}&limit=10&include_over_18=false`;
+
+  try {
+    const data = await fetchRedditJSON(path);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const listing = data as any;
+    if (!listing?.data?.children) return [];
+
+    return listing.data.children
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((child: any) => child.kind === 't5')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((child: any) => ({
+        name: child.data.display_name,
+        title: child.data.title || child.data.display_name,
+        subscribers: child.data.subscribers || 0,
+        description: child.data.public_description || '',
+        over18: child.data.over18 || false,
+      }))
+      .filter((sub: SubredditSearchResult) => !sub.over18 && sub.subscribers > 1000);
+  } catch (error) {
+    console.warn(`[Ignition] ⚠️ Subreddit search failed for "${query}":`, error);
+    return [];
+  }
+}
+
+// ============================================
+// SCORING & PARSING (unchanged logic)
+// ============================================
 
 function calculateRelevanceScore(thread: RedditThread, queryTokens: string[]): number {
   let score = 0;
-  
-  // Base score: score * upvote ratio
+
+  // Base score
   score += thread.score * thread.upvoteRatio;
-  
+
   // Title match bonus
   const titleText = thread.title.toLowerCase();
   queryTokens.forEach(token => {
     if (titleText.includes(token)) {
-      score += 50; // Bonus for title match
-      if (titleText.startsWith(token)) {
-        score += 30; // Additional bonus if title starts with token
-      }
+      score += 50;
+      if (titleText.startsWith(token)) score += 30;
     }
   });
-  
+
   // Selftext match bonus
   const selftext = thread.selftext.toLowerCase();
   queryTokens.forEach(token => {
-    if (selftext.includes(token)) {
-      score += 25; // Bonus for selftext match
-    }
+    if (selftext.includes(token)) score += 25;
   });
-  
+
   // Comment count bonus
   score += thread.numComments * 2;
-  
-  // Freshness bonus (newer threads get higher score)
+
+  // Freshness bonus
   const hoursOld = (Date.now() / 1000 - thread.createdUtc) / 3600;
-  if (hoursOld < 24) score += 100; // 24 hours old
-  else if (hoursOld < 72) score += 50; // 3 days old
-  else if (hoursOld < 168) score += 25; // 1 week old
-  
+  if (hoursOld < 24) score += 100;
+  else if (hoursOld < 72) score += 50;
+  else if (hoursOld < 168) score += 25;
+
   return score;
 }
 
@@ -425,7 +346,7 @@ interface RedditResponse {
     children: Array<{
       kind: string;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: any; // reddit data is deeply nested and varied, using any here with caution or define more if needed
+      data: any;
     }>;
   };
 }
@@ -484,7 +405,6 @@ function parseComments(children: any[], depth = 0): RedditComment[] {
 }
 
 export function calculateTokenEstimate(thread: RedditThread): number {
-  // Rough estimate: 1 token ≈ 4 characters
   let charCount = thread.title.length + thread.selftext.length;
 
   const countCommentChars = (comments: RedditComment[]): number => {
