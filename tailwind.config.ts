@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'system-ui', 'sans-serif'],
-        heading: ['Space Grotesk', 'system-ui', 'sans-serif'],
+        sans: ['Cormorant Garamond', 'Georgia', 'serif'],
+        heading: ['Cormorant Garamond', 'Georgia', 'serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
       colors: {

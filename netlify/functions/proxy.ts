@@ -1,3 +1,9 @@
+// ============================================================
+// DEPRECATED: Reddit proxy functionality is no longer needed
+// Reddit requests now use client-side CORS proxies directly
+// This file is kept for any future non-Reddit proxying needs
+// ============================================================
+
 import { Context } from "@netlify/functions";
 import axios from "axios";
 import { HttpsProxyAgent } from "https-proxy-agent";
@@ -15,7 +21,8 @@ export default async (request: Request, context: Context) => {
     }
 
     // Security: Only allow Reddit and approved Libreddit/Redlib instances
-    const allowedDomains = [
+    // Reddit domains are no longer needed - using client-side CORS proxies
+// const allowedDomains = [
         "reddit.com",
         "old.reddit.com",
         "new.reddit.com",
